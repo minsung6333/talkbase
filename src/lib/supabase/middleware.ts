@@ -34,6 +34,16 @@ export async function updateSession(request: NextRequest) {
     '/share/', '/api/share/',   // 공유 페이지 (인증 불필요)
     '/help/',                    // 도움말 (인증 불필요)
     '/api/access-request',       // 사용 요청 (비로그인 사용자가 요청)
+    // PWA / 정적 자산 (인증 절대 불필요)
+    '/manifest',                 // /manifest.webmanifest, /manifest.json
+    '/sw.js',                    // Service Worker
+    '/icon-',                    // /icon-192.png 등 모든 아이콘
+    '/apple-icon',
+    '/favicon',
+    '/logo/',                    // /logo/*.svg
+    '/fonts/',                   // /fonts/*.otf
+    '/opengraph-image',          // OG 이미지
+    '/twitter-image',
   ]
   const isPublicPath = publicPaths.some(p => request.nextUrl.pathname.startsWith(p))
 
