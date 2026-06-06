@@ -24,6 +24,10 @@ export default function PWAStatusPage() {
   const [userAgent, setUserAgent] = useState('')
   const [manifestData, setManifestData] = useState<Record<string, unknown> | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [uploadTest, setUploadTest] = useState<{
+    running: boolean
+    log: string[]
+  }>({ running: false, log: [] })
 
   useEffect(() => {
     const run = async () => {
@@ -176,6 +180,84 @@ export default function PWAStatusPage() {
     setInstallPrompt(null)
   }
 
+  const runUploadTest = async () => {
+    const log: string[] = []
+    const add = (msg: string) => {
+      log.push(msg)
+      setUploadTest({ running: true, log: [...log] })
+    }
+
+    setUploadTest({ running: true, log: [] })
+
+    try {
+      add('1️⃣ Presign API 호출 중...')
+      const presignRes = await fetch('/api/upload/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: 'cors-test.txt',
+          contentType: 'text/plain',
+          title: '[CORS 테스트]',
+          type: 'other',
+          visibility: 'private',
+          outputFormat: 'summary',
+          projectId: null,
+        }),
+      })
+
+      if (!presignRes.ok) {
+        const t = await presignRes.text()
+        add(`❌ Presign 실패: HTTP ${presignRes.status} — ${t.slice(0, 100)}`)
+        setUploadTest({ running: false, log })
+        return
+      }
+
+      const presign = await presignRes.json()
+      add(`✅ Presign 성공 (recordingId: ${presign.recordingId.slice(0, 8)}...)`)
+      add(`   URL: ${presign.uploadUrl.split('?')[0].slice(0, 80)}...`)
+
+      add('')
+      add('2️⃣ R2 PUT 시도 중 (1KB 더미 파일)...')
+
+      const dummy = new Blob(['cors test'], { type: 'text/plain' })
+
+      const startedAt = Date.now()
+      try {
+        const r2Res = await fetch(presign.uploadUrl, {
+          method: 'PUT',
+          body: dummy,
+          headers: { 'Content-Type': 'text/plain' },
+        })
+
+        const elapsed = Date.now() - startedAt
+        if (r2Res.ok) {
+          add(`✅ R2 업로드 성공! (${elapsed}ms)`)
+          add(`   응답 코드: ${r2Res.status}`)
+          add('')
+          add('🎉 R2 직접 업로드가 정상 작동합니다.')
+        } else {
+          const t = await r2Res.text()
+          add(`❌ R2 응답 에러: HTTP ${r2Res.status} (${elapsed}ms)`)
+          add(`   본문: ${t.slice(0, 200)}`)
+        }
+      } catch (err) {
+        const elapsed = Date.now() - startedAt
+        add(`❌ R2 fetch 실패 (${elapsed}ms)`)
+        if (err instanceof TypeError) {
+          add(`   TypeError: ${err.message}`)
+          add(`   → CORS 차단 또는 네트워크 차단 가능성`)
+          add(`   → DevTools Network 탭에서 "PUT ${presign.uploadUrl.split('?')[0].slice(0, 40)}..." 요청 확인`)
+        } else {
+          add(`   ${err instanceof Error ? err.name + ': ' + err.message : String(err)}`)
+        }
+      }
+    } catch (err) {
+      add(`❌ 예외: ${err instanceof Error ? err.message : String(err)}`)
+    }
+
+    setUploadTest({ running: false, log })
+  }
+
   const clearAllData = async () => {
     if (!confirm('Service Worker와 캐시를 모두 삭제할까요? 다음 새로고침 시 다시 등록돼요.')) return
 
@@ -313,6 +395,33 @@ export default function PWAStatusPage() {
             <li>크롬 외 다른 브라우저 시도 (삼성 인터넷)</li>
             <li>iPhone은 반드시 Safari 사용</li>
           </ul>
+        </div>
+
+        {/* R2 업로드 테스트 */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+          <div>
+            <h3 className="font-semibold text-gray-900 text-sm">R2 업로드 직접 테스트</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              실제 업로드 흐름을 1KB 더미 파일로 검증해요. 어디서 막히는지 정확히 알 수 있어요.
+            </p>
+          </div>
+
+          <button
+            onClick={runUploadTest}
+            disabled={uploadTest.running}
+            className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
+          >
+            {uploadTest.running
+              ? <><RefreshCw className="w-4 h-4 animate-spin" /> 테스트 중...</>
+              : <>🧪 업로드 테스트 실행</>
+            }
+          </button>
+
+          {uploadTest.log.length > 0 && (
+            <pre className="text-xs bg-gray-900 text-green-300 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-all font-mono leading-relaxed max-h-96 overflow-y-auto">
+              {uploadTest.log.join('\n')}
+            </pre>
+          )}
         </div>
 
         {/* 초기화 */}
