@@ -40,7 +40,7 @@ export async function GET() {
   return NextResponse.json({ workspaces, currentId })
 }
 
-// POST: 새 워크스페이스 만들기 (만든 사람은 자동 owner)
+// POST: 새 워크스페이스 만들기 (기존 멤버십이 있는 사람만 가능)
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -52,6 +52,18 @@ export async function POST(request: Request) {
   }
 
   const db = admin()
+
+  // 기존 멤버십 없는 신규 사용자는 워크스페이스 생성 불가 (초대 필요)
+  const { count } = await db
+    .from('workspace_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+  if ((count ?? 0) === 0) {
+    return NextResponse.json(
+      { error: '초대받은 사용자만 워크스페이스를 만들 수 있어요' },
+      { status: 403 }
+    )
+  }
   const slug = await generateUniqueSlug(name.trim())
 
   // 1. workspace 생성
