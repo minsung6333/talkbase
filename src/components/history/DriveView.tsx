@@ -173,9 +173,9 @@ export default function DriveView() {
           </button>
         </div>
 
-        {/* 새 폴더 만들기 */}
+        {/* 새 폴더 만들기 — 모바일은 세로, 데스크탑은 한 줄 */}
         {showNewFolder && (
-          <div className="bg-blue-50 rounded-2xl p-4 flex items-center gap-3">
+          <div className="bg-blue-50 rounded-2xl p-4 space-y-3 sm:space-y-0 sm:flex sm:items-center sm:gap-3">
             <input
               autoFocus
               type="text"
@@ -183,22 +183,24 @@ export default function DriveView() {
               onChange={e => setNewFolderName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && createFolder()}
               placeholder="폴더 이름"
-              className="flex-1 border border-blue-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="w-full sm:flex-1 border border-blue-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
-            <select
-              value={newFolderSpace}
-              onChange={e => setNewFolderSpace(e.target.value as 'team' | 'personal')}
-              className="border border-blue-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none"
-            >
-              <option value="team">🏢 팀 공유</option>
-              <option value="personal">🔒 나만 보기</option>
-            </select>
-            <button onClick={createFolder} className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700">
-              <Check className="w-4 h-4" />
-            </button>
-            <button onClick={() => setShowNewFolder(false)} className="p-2 text-gray-400 hover:text-gray-600">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={newFolderSpace}
+                onChange={e => setNewFolderSpace(e.target.value as 'team' | 'personal')}
+                className="flex-1 sm:flex-initial border border-blue-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none"
+              >
+                <option value="team">🏢 팀 공유</option>
+                <option value="personal">🔒 나만 보기</option>
+              </select>
+              <button onClick={createFolder} className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex-shrink-0">
+                <Check className="w-4 h-4" />
+              </button>
+              <button onClick={() => setShowNewFolder(false)} className="p-2.5 text-gray-400 hover:text-gray-600 flex-shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
 
