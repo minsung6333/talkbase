@@ -141,7 +141,9 @@ export default function WorkspaceSettings({ workspace, members: initial, myRole,
     const d = await res.json()
     setInviting(false)
     if (res.ok) {
-      if (d.emailSent) {
+      if (d.pendingApproval) {
+        setSuccess(`✓ ${inviteEmail} 초대를 관리자 승인 대기열에 올렸어요`)
+      } else if (d.emailSent) {
         setSuccess(`✓ ${inviteEmail}에 초대 메일을 발송했어요`)
       } else {
         setWarn('⚠️ 멤버 추가는 완료됐지만 메일 발송에 실패했어요')

@@ -53,14 +53,23 @@ export async function POST(request: Request) {
 
   const db = admin()
 
-  // 기존 멤버십 없는 신규 사용자는 워크스페이스 생성 불가 (초대 필요)
-  const { count } = await db
-    .from('workspace_members')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-  if ((count ?? 0) === 0) {
+  // 워크스페이스 생성 가능 조건:
+  //  1) 기존 멤버십이 있거나
+  //  2) 슈퍼관리자가 가입 신청을 approved 처리한 사람
+  const [{ count: memberCount }, { data: signup }] = await Promise.all([
+    db.from('workspace_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+    db.from('user_signups')
+      .select('status')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
+
+  const canCreate = (memberCount ?? 0) > 0 || signup?.status === 'approved'
+  if (!canCreate) {
     return NextResponse.json(
-      { error: '초대받은 사용자만 워크스페이스를 만들 수 있어요' },
+      { error: '관리자 승인 후 워크스페이스를 만들 수 있어요' },
       { status: 403 }
     )
   }

@@ -5,7 +5,7 @@ import { createClient as createAdmin } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import WorkspaceList from '@/components/workspaces/WorkspaceList'
 import TalkBaseLogo from '@/components/ui/TalkBaseLogo'
-import InviteWaiting from '@/components/workspaces/InviteWaiting'
+import SignupStatus from '@/components/workspaces/SignupStatus'
 
 export default async function WorkspacesPage() {
   const supabase = await createClient()
@@ -17,13 +17,24 @@ export default async function WorkspacesPage() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 기존 멤버십 여부 확인 (joined + pending 모두)
-  const { count } = await db
+  // 1. 워크스페이스 멤버십 (joined만)
+  const { count: memberCount } = await db
     .from('workspace_members')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
+    .not('joined_at', 'is', null)
 
-  const hasAnyMembership = (count ?? 0) > 0
+  const hasMembership = (memberCount ?? 0) > 0
+
+  // 2. 가입 신청 상태
+  const { data: signup } = await db
+    .from('user_signups')
+    .select('status, reject_reason')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const signupStatus = signup?.status as 'pending' | 'approved' | 'rejected' | undefined
+  const isApproved = signupStatus === 'approved' || hasMembership
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-white">
@@ -32,10 +43,14 @@ export default async function WorkspacesPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-5 sm:px-6 py-8 sm:py-12">
-        {hasAnyMembership ? (
+        {isApproved ? (
           <WorkspaceList />
         ) : (
-          <InviteWaiting email={user.email!} />
+          <SignupStatus
+            email={user.email!}
+            status={signupStatus || 'pending'}
+            rejectReason={signup?.reject_reason || undefined}
+          />
         )}
       </main>
     </div>

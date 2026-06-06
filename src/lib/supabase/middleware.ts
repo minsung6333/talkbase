@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { WORKSPACE_COOKIE, WORKSPACE_COOKIE_MAX_AGE } from '@/lib/workspace'
+import { isSuperAdmin } from '@/lib/admin'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -56,6 +57,21 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // 1.5단계: 슈퍼 관리자 경로 통제 (/admin, /api/admin)
+  if (user && (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/api/admin'))) {
+    if (!isSuperAdmin(user.email)) {
+      if (request.nextUrl.pathname.startsWith('/api/')) {
+        return NextResponse.json(
+          { error: '슈퍼 관리자만 접근 가능합니다', code: 'FORBIDDEN' },
+          { status: 403 }
+        )
+      }
+      const url = request.nextUrl.clone()
+      url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
+  }
+
   // 2단계: 워크스페이스 컨텍스트 검증
   // 로그인은 됐지만 워크스페이스 컨텍스트가 필요한 경로에 진입한 경우
   if (user && !isPublicPath) {
@@ -63,7 +79,9 @@ export async function updateSession(request: NextRequest) {
     const workspaceExemptPaths = [
       '/workspaces',         // 워크스페이스 목록 + 만들기
       '/profile',            // 본인 프로필
+      '/admin',              // 슈퍼 관리자 페이지
       '/api/workspaces',     // 워크스페이스 API
+      '/api/admin',          // 슈퍼 관리자 API
       '/api/me',             // 본인 정보
       '/api/profile',        // 프로필 API
     ]

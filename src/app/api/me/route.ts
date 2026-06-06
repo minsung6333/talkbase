@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { resolveCurrentWorkspace } from '@/lib/workspace'
+import { isSuperAdmin } from '@/lib/admin'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -8,12 +9,13 @@ export const runtime = 'nodejs'
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ isAdmin: false })
+  if (!user) return NextResponse.json({ isAdmin: false, isSuperAdmin: false })
 
+  const superAdmin = isSuperAdmin(user.email)
   const { workspaceId } = await resolveCurrentWorkspace()
 
   if (!workspaceId) {
-    return NextResponse.json({ isAdmin: false, role: null })
+    return NextResponse.json({ isAdmin: false, role: null, isSuperAdmin: superAdmin })
   }
 
   const admin = createAdmin(
@@ -32,5 +34,6 @@ export async function GET() {
   return NextResponse.json({
     isAdmin: role === 'owner' || role === 'admin',
     role,
+    isSuperAdmin: superAdmin,
   })
 }

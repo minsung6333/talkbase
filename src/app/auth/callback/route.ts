@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { WORKSPACE_COOKIE, WORKSPACE_COOKIE_MAX_AGE } from '@/lib/workspace'
+import { getSuperAdminNotificationEmail } from '@/lib/admin'
+import { sendSignupNotificationEmail } from '@/lib/email'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -43,7 +45,6 @@ export async function GET(request: Request) {
       .maybeSingle()
 
     if (invite && !invite.used_at && invite.expires_at >= now && invite.email === user.email) {
-      // workspace_members pending 레코드 업데이트
       await admin
         .from('workspace_members')
         .update({
@@ -56,7 +57,6 @@ export async function GET(request: Request) {
         .eq('email', invite.email)
         .is('user_id', null)
 
-      // 토큰 사용 처리
       await admin
         .from('workspace_invites')
         .update({ used_at: now })
@@ -64,14 +64,13 @@ export async function GET(request: Request) {
 
       claimedWorkspaceId = invite.workspace_id
     } else if (invite && invite.email !== user.email) {
-      // 이메일 불일치 → 초대 페이지로 리다이렉트 (에러 표시)
       return NextResponse.redirect(
         `${origin}/invite?token=${inviteToken}&error=email_mismatch&expected=${encodeURIComponent(invite.email)}`
       )
     }
   }
 
-  // 2. 이메일로 pending workspace_members 자동 수락 (토큰 없는 기존 초대)
+  // 2. 이메일로 pending workspace_members 자동 수락
   const { data: pendingMembers } = await admin
     .from('workspace_members')
     .select('id, workspace_id')
@@ -91,8 +90,91 @@ export async function GET(request: Request) {
       .is('user_id', null)
   }
 
-  // 3. 워크스페이스 쿠키 설정
-  // 우선순위: 방금 수락한 초대 > 기존 워크스페이스 > pending 중 첫 번째
+  // 3. workspace_members에 있는 사람인지 확인 (있으면 자동 approved 처리 + 가입 신청 불필요)
+  const { count: memberCount } = await admin
+    .from('workspace_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+
+  const hasMembership = (memberCount ?? 0) > 0
+
+  // 4. 워크스페이스 멤버가 아니라면 user_signups 처리
+  if (!hasMembership) {
+    const { data: existingSignup } = await admin
+      .from('user_signups')
+      .select('id, status')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!existingSignup) {
+      // 첫 가입 신청
+      await admin.from('user_signups').insert({
+        user_id: user.id,
+        email: user.email!,
+        full_name: user.user_metadata?.full_name || null,
+        avatar_url: user.user_metadata?.avatar_url || null,
+        status: 'pending',
+      })
+
+      // 슈퍼 관리자에게 알림 메일
+      const adminEmail = getSuperAdminNotificationEmail()
+      if (adminEmail) {
+        try {
+          await sendSignupNotificationEmail(
+            adminEmail,
+            {
+              email: user.email!,
+              fullName: user.user_metadata?.full_name || null,
+              avatarUrl: user.user_metadata?.avatar_url || null,
+            },
+            origin
+          )
+        } catch (err) {
+          console.error('가입 알림 메일 발송 실패:', err)
+        }
+      }
+    } else if (existingSignup.status === 'rejected') {
+      // 거절된 사용자가 재로그인 → 자동 재신청 (pending으로 되돌리고 카운터 증가)
+      const { data: prev } = await admin
+        .from('user_signups')
+        .select('reapplied_count')
+        .eq('id', existingSignup.id)
+        .single()
+
+      await admin
+        .from('user_signups')
+        .update({
+          status: 'pending',
+          reject_reason: null,
+          reviewed_at: null,
+          reviewed_by: null,
+          reapplied_count: (prev?.reapplied_count ?? 0) + 1,
+          updated_at: now,
+        })
+        .eq('id', existingSignup.id)
+
+      const adminEmail = getSuperAdminNotificationEmail()
+      if (adminEmail) {
+        try {
+          await sendSignupNotificationEmail(
+            adminEmail,
+            {
+              email: user.email!,
+              fullName: user.user_metadata?.full_name || null,
+              avatarUrl: user.user_metadata?.avatar_url || null,
+            },
+            origin
+          )
+        } catch (err) {
+          console.error('재신청 알림 메일 발송 실패:', err)
+        }
+      }
+    }
+    // existingSignup.status === 'pending' 이면 그대로 둠 (재신청 X)
+    // existingSignup.status === 'approved' 이면 workspace_members 비어있는 이상 상태 — 그대로 두고 /workspaces로
+  }
+
+  // 5. 워크스페이스 쿠키 설정
   let workspaceId: string | null = claimedWorkspaceId
 
   if (!workspaceId) {
@@ -105,10 +187,6 @@ export async function GET(request: Request) {
       .limit(1)
       .maybeSingle()
     workspaceId = existingMember?.workspace_id || null
-  }
-
-  if (!workspaceId && pendingMembers?.length) {
-    workspaceId = pendingMembers[0].workspace_id
   }
 
   const destination = workspaceId ? `${origin}/` : `${origin}/workspaces`

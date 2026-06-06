@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   Mic, Home, FolderOpen, Search, Settings, LogOut, User,
-  Crown, Shield, Users, ChevronDown, Plus,
+  Crown, Shield, ShieldCheck, Users, ChevronDown, Plus,
   type LucideIcon,
 } from 'lucide-react'
 import type { WorkspaceRole } from '@/lib/workspace'
@@ -43,6 +43,10 @@ export default function Header() {
   const supabase = createClient()
 
   const [myWorkspaceRole, setMyWorkspaceRole] = useState<WorkspaceRole | null>(null)
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return sessionStorage.getItem('tb_isSuperAdmin') === '1'
+  })
 
   const [currentWorkspaceName, setCurrentWorkspaceName] = useState<string>(() => {
     if (typeof window === 'undefined') return ''
@@ -70,6 +74,15 @@ export default function Header() {
         setCurrentWorkspaceName(name)
         if (name) sessionStorage.setItem('tb_workspace_name', name)
         setMyWorkspaceRole(current?.role || list[0]?.role || null)
+      })
+      .catch(() => {})
+
+    fetch('/api/me')
+      .then(r => r.json())
+      .then(d => {
+        const sa = !!d.isSuperAdmin
+        setIsSuperAdmin(sa)
+        sessionStorage.setItem('tb_isSuperAdmin', sa ? '1' : '0')
       })
       .catch(() => {})
   }, [])
@@ -118,6 +131,7 @@ export default function Header() {
     { href: '/history', label: '보관함', icon: FolderOpen },
     { href: '/search',  label: '검색',   icon: Search },
     ...(canManage && settingsHref ? [{ href: settingsHref, label: '관리', icon: Settings }] : []),
+    ...(isSuperAdmin ? [{ href: '/admin', label: '슈퍼', icon: ShieldCheck }] : []),
   ]
 
   return (
