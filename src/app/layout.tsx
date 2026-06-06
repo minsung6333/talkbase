@@ -17,8 +17,11 @@ export const metadata: Metadata = {
   description: "녹음된 대화를 업무 지식으로 바꾸다",
   manifest: "/manifest.json",
   icons: {
-    icon: '/logo/icon-filled.svg',
-    apple: '/logo/icon-filled.svg',
+    icon: [
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
   },
   appleWebApp: {
     capable: true,

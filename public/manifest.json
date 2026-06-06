@@ -3,6 +3,7 @@
   "short_name": "TalkBase",
   "description": "녹음된 대화를 업무 지식으로 바꾸다",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
@@ -11,19 +12,19 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/api/icon-192",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/api/icon-512",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/api/icon-512-maskable",
+      "src": "/icon-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
