@@ -46,6 +46,68 @@ export default function PWAStatusPage() {
         detail: location.origin,
       })
 
+      // 1-1. 로그인 상태 확인
+      try {
+        const meRes = await fetch('/api/me', { cache: 'no-store' })
+        if (meRes.ok) {
+          const me = await meRes.json()
+          if (me.isAdmin || me.role) {
+            newChecks.push({
+              label: '로그인 상태',
+              status: 'pass',
+              detail: `로그인됨 · 역할: ${me.role || (me.isAdmin ? 'admin' : 'member')}`,
+            })
+          } else {
+            newChecks.push({
+              label: '로그인 상태',
+              status: 'fail',
+              detail: '로그인 안 됨 (응답에 role 정보 없음). 로그인 페이지에서 재로그인 필요.',
+            })
+          }
+        } else if (meRes.status === 405) {
+          newChecks.push({
+            label: '로그인 상태',
+            status: 'fail',
+            detail: `HTTP 405 — 미들웨어가 /login으로 리다이렉트. 쿠키/세션 없음. 재로그인 필요.`,
+          })
+        } else {
+          newChecks.push({
+            label: '로그인 상태',
+            status: 'fail',
+            detail: `HTTP ${meRes.status}`,
+          })
+        }
+      } catch (e) {
+        newChecks.push({
+          label: '로그인 상태',
+          status: 'fail',
+          detail: `네트워크 에러: ${e instanceof Error ? e.message : 'unknown'}`,
+        })
+      }
+
+      // 1-2. 쿠키 확인
+      const allCookies = document.cookie
+      const supabaseCookies = allCookies.split(';').filter(c => c.includes('sb-') || c.includes('supabase'))
+      newChecks.push({
+        label: '인증 쿠키 (sb-*)',
+        status: supabaseCookies.length > 0 ? 'pass' : 'fail',
+        detail: supabaseCookies.length > 0
+          ? `${supabaseCookies.length}개 발견 (${supabaseCookies.map(c => c.split('=')[0].trim()).join(', ')})`
+          : '없음 — 로그인 안 되어 있거나 쿠키가 막힌 상태',
+      })
+
+      // 1-3. PWA 모드 / 쿠키 컨텍스트
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as { standalone?: boolean }).standalone === true
+      if (isStandalone) {
+        newChecks.push({
+          label: 'PWA standalone 모드',
+          status: 'pending',
+          detail: '⚠️ PWA로 실행 중. 일부 OS는 브라우저와 쿠키가 분리됨. PWA 내에서 로그인 필요.',
+        })
+      }
+
       // 2. manifest.webmanifest (Next.js 자동 생성) — 캐시 버스터 포함
       const cacheBuster = `?_=${Date.now()}`
       let manifestOk = false
