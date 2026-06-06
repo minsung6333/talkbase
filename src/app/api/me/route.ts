@@ -1,11 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { resolveCurrentWorkspace } from '@/lib/workspace'
 import { NextResponse } from 'next/server'
+
+export const runtime = 'nodejs'
 
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ isAdmin: false })
+
+  const { workspaceId } = await resolveCurrentWorkspace()
+
+  if (!workspaceId) {
+    return NextResponse.json({ isAdmin: false, role: null })
+  }
 
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,13 +22,15 @@ export async function GET() {
   )
 
   const { data: member } = await admin
-    .from('team_members')
+    .from('workspace_members')
     .select('role')
+    .eq('workspace_id', workspaceId)
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
+  const role = member?.role || null
   return NextResponse.json({
-    isAdmin: member?.role === 'admin',
-    role: member?.role,
+    isAdmin: role === 'owner' || role === 'admin',
+    role,
   })
 }

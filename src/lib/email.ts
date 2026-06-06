@@ -120,9 +120,21 @@ function escapeHtml(s: string) {
 export async function sendInviteEmail(
   to: string,
   inviterName: string,
-  appUrl: string
+  appUrl: string,
+  options?: { workspaceName?: string; inviteToken?: string }
 ) {
-  const subject = `🎉 ${inviterName}님이 TalkBase로 초대했어요`
+  const workspaceName = options?.workspaceName
+  const inviteLink = options?.inviteToken
+    ? `${appUrl}/invite?token=${options.inviteToken}`
+    : `${appUrl}/login`
+
+  const workspaceLabel = workspaceName
+    ? `<strong style="color: #0F172A;">${workspaceName}</strong> 워크스페이스`
+    : 'TalkBase'
+
+  const subject = workspaceName
+    ? `🎉 ${inviterName}님이 ${workspaceName}에 초대했어요`
+    : `🎉 ${inviterName}님이 TalkBase로 초대했어요`
 
   const html = `
 <!DOCTYPE html>
@@ -139,12 +151,12 @@ export async function sendInviteEmail(
   <!-- 메인 -->
   <h1 style="font-size: 26px; font-weight: 700; margin: 0 0 16px; line-height: 1.3;">
     🎉 ${inviterName}님이<br/>
-    TalkBase로 초대했어요
+    ${workspaceLabel}에 초대했어요
   </h1>
 
   <p style="font-size: 15px; line-height: 1.7; color: #475569; margin: 0 0 28px;">
     안녕하세요!<br/>
-    <strong style="color: #0F172A;">${inviterName}</strong>님이 TalkBase 팀원으로 초대했습니다.
+    <strong style="color: #0F172A;">${inviterName}</strong>님이 TalkBase의 ${workspaceLabel}에 초대했습니다.
   </p>
 
   <!-- 카드 -->
@@ -159,10 +171,10 @@ export async function sendInviteEmail(
 
   <!-- CTA -->
   <div style="text-align: center; margin: 36px 0;">
-    <a href="${appUrl}/login"
+    <a href="${inviteLink}"
        style="display: inline-block; background: #1A60FD; color: white; text-decoration: none;
               padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 600;">
-      지금 시작하기 →
+      초대 수락하기 →
     </a>
     <p style="font-size: 13px; color: #94A3B8; margin: 16px 0 0;">
       이 이메일 주소의 Google 계정으로 로그인해주세요

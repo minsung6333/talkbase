@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { resolveCurrentWorkspace } from '@/lib/workspace'
 import { submitTranscription } from '@/lib/rtzr'
 import { NextResponse } from 'next/server'
 
@@ -12,6 +13,11 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { workspaceId } = await resolveCurrentWorkspace()
+  if (!workspaceId) {
+    return NextResponse.json({ error: '워크스페이스가 필요해요' }, { status: 403 })
+  }
+
   try {
     const { blobUrl, filename, title, type, visibility, outputFormat, projectId, speakerCount } = await request.json()
 
@@ -21,6 +27,7 @@ export async function POST(request: Request) {
 
     const recordingData: Record<string, unknown> = {
       user_id: user.id,
+      workspace_id: workspaceId,
       title,
       type,
       visibility,
@@ -43,7 +50,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error?.message || 'DB 저장 실패' }, { status: 500 })
     }
 
-    // STT 시작 (Blob URL은 public이라 그대로 전달 가능)
     try {
       const jobId = await submitTranscription(blobUrl, {
         speakerCount: speakerCount && Number(speakerCount) > 0 ? Number(speakerCount) : undefined,

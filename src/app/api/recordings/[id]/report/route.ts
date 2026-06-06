@@ -53,12 +53,13 @@ export async function POST(
     return NextResponse.json({ error: 'STT 결과가 없어요' }, { status: 400 })
   }
 
-  // 발신자 이름 조회
+  // 발신자 이름 조회 (workspace_members에서 현재 녹음의 워크스페이스 기준)
   const { data: member } = await db
-    .from('team_members')
+    .from('workspace_members')
     .select('full_name, email, notification_email')
+    .eq('workspace_id', recording.workspace_id)
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
   const senderName = member?.full_name || (member?.email?.split('@')[0]) || '담당자'
 

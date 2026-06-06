@@ -1,11 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { resolveCurrentWorkspace } from '@/lib/workspace'
 import { NextResponse } from 'next/server'
+
+export const runtime = 'nodejs'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { workspaceId } = await resolveCurrentWorkspace()
+  if (!workspaceId) {
+    return NextResponse.json({ error: '워크스페이스가 필요해요' }, { status: 403 })
+  }
 
   const { searchParams } = new URL(request.url)
   const q = searchParams.get('q')?.trim()
@@ -16,11 +24,10 @@ export async function GET(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 제목 + STT 내용 + AI 결과물 검색
   const { data } = await db
     .from('recordings')
     .select('id, title, type, status, output_format, created_at, visibility, ai_result, stt_result')
-    .or(`visibility.eq.team,user_id.eq.${user.id}`)
+    .eq('workspace_id', workspaceId)
     .eq('status', 'completed')
     .order('created_at', { ascending: false })
     .limit(50)
@@ -31,16 +38,13 @@ export async function GET(request: Request) {
 
   const results = data
     .map(r => {
-      // 매칭 점수 계산
       let score = 0
       let snippet = ''
 
-      // 제목 매칭 (가중치 높음)
       if (r.title.toLowerCase().includes(lowerQ)) {
         score += 10
       }
 
-      // AI 결과물 매칭
       if (r.ai_result?.toLowerCase().includes(lowerQ)) {
         score += 5
         const idx = r.ai_result.toLowerCase().indexOf(lowerQ)
@@ -49,7 +53,6 @@ export async function GET(request: Request) {
         snippet = (start > 0 ? '...' : '') + r.ai_result.slice(start, end) + (end < r.ai_result.length ? '...' : '')
       }
 
-      // STT 전문 매칭
       if (!snippet && Array.isArray(r.stt_result)) {
         const match = r.stt_result.find((u: { text: string }) =>
           u.text?.toLowerCase().includes(lowerQ)

@@ -30,12 +30,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    // 업로더 이메일 조회 (notification_email 우선)
+    // 업로더 이메일 조회 (workspace_members에서 notification_email 우선)
     const { data: member } = await admin
-      .from('team_members')
+      .from('workspace_members')
       .select('email, full_name, avatar_url, notification_email')
+      .eq('workspace_id', recording.workspace_id)
       .eq('user_id', recording.user_id)
-      .single()
+      .maybeSingle()
 
     recording.user = member
 

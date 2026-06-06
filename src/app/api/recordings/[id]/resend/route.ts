@@ -31,10 +31,11 @@ export async function POST(
     return NextResponse.json({ error: '발송할 내용이 없어요' }, { status: 400 })
 
   const { data: member } = await db
-    .from('team_members')
+    .from('workspace_members')
     .select('email, notification_email')
     .eq('user_id', user.id)
-    .single()
+    .limit(1)
+    .maybeSingle()
 
   const toEmail = member?.notification_email || member?.email
   if (!toEmail) return NextResponse.json({ error: '이메일이 없어요' }, { status: 400 })

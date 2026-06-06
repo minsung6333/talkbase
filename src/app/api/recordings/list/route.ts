@@ -1,11 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { resolveCurrentWorkspace } from '@/lib/workspace'
 import { NextResponse } from 'next/server'
+
+export const runtime = 'nodejs'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { workspaceId } = await resolveCurrentWorkspace()
+  if (!workspaceId) {
+    return NextResponse.json({ error: '워크스페이스가 필요해요' }, { status: 403 })
+  }
 
   const { searchParams } = new URL(request.url)
   const projectId = searchParams.get('project_id')
@@ -20,13 +28,12 @@ export async function GET(request: Request) {
   let query = db
     .from('recordings')
     .select('id, title, type, status, output_format, created_at, project_id, visibility')
+    .eq('workspace_id', workspaceId)
     .order('created_at', { ascending: false })
 
   if (projectId) {
-    // 특정 폴더 안의 녹음
     query = query.eq('project_id', projectId)
   } else if (noProject === 'true') {
-    // 미분류 녹음
     query = query.is('project_id', null)
     if (space === 'team') {
       query = query.eq('visibility', 'team')
