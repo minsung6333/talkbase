@@ -85,18 +85,36 @@ export default function UploadForm() {
         }),
       })
 
-      if (!presignRes.ok) throw new Error('업로드 URL 생성 실패')
+      if (!presignRes.ok) {
+        const errBody = await presignRes.json().catch(() => ({}))
+        throw new Error(`[1단계] 업로드 URL 생성 실패: ${errBody.error || presignRes.status}`)
+      }
       const { uploadUrl, recordingId, fileKey } = await presignRes.json()
 
       // 2. R2에 직접 업로드 (진행률 추적)
-      await uploadWithProgress(file, uploadUrl, setUploadProgress)
+      try {
+        await uploadWithProgress(file, uploadUrl, setUploadProgress, file.type || 'audio/x-m4a')
+      } catch (uploadErr) {
+        const msg = uploadErr instanceof Error ? uploadErr.message : '알 수 없는 오류'
+        throw new Error(
+          `[2단계] 파일 전송 실패: ${msg}\n\n` +
+          `가능한 원인:\n` +
+          `· 네트워크 연결 불안정 (재시도 권장)\n` +
+          `· 파일 크기가 너무 큼 (${formatFileSize(file.size)})\n` +
+          `· R2 CORS 설정 미흡`
+        )
+      }
 
       // 3. 업로드 완료 → 처리 시작 요청
-      await fetch('/api/process/start', {
+      const startRes = await fetch('/api/process/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recordingId, fileKey }),
       })
+      if (!startRes.ok) {
+        const errBody = await startRes.json().catch(() => ({}))
+        throw new Error(`[3단계] STT 시작 실패: ${errBody.error || startRes.status}`)
+      }
 
       // 4. 처리 중 페이지로 이동
       router.push(`/processing/${recordingId}`)
@@ -152,7 +170,9 @@ export default function UploadForm() {
       </div>
 
       {error && (
-        <p className="text-sm text-red-500 bg-red-50 rounded-xl px-4 py-3">{error}</p>
+        <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 whitespace-pre-line leading-relaxed">
+          ❌ {error}
+        </div>
       )}
 
       {/* 메타데이터 */}
@@ -310,7 +330,8 @@ export default function UploadForm() {
 async function uploadWithProgress(
   file: File,
   url: string,
-  onProgress: (pct: number) => void
+  onProgress: (pct: number) => void,
+  contentType: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
@@ -321,11 +342,14 @@ async function uploadWithProgress(
     })
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve()
-      else reject(new Error(`업로드 실패: ${xhr.status}`))
+      else reject(new Error(`R2 응답 HTTP ${xhr.status} ${xhr.statusText || ''}`))
     })
-    xhr.addEventListener('error', () => reject(new Error('네트워크 오류')))
+    xhr.addEventListener('error', () => reject(new Error('네트워크 또는 CORS 차단')))
+    xhr.addEventListener('timeout', () => reject(new Error('업로드 시간 초과 (5분)')))
+    xhr.addEventListener('abort', () => reject(new Error('업로드 중단됨')))
     xhr.open('PUT', url)
-    xhr.setRequestHeader('Content-Type', file.type || 'audio/x-m4a')
+    xhr.timeout = 5 * 60 * 1000 // 5분
+    xhr.setRequestHeader('Content-Type', contentType)
     xhr.send(file)
   })
 }
