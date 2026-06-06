@@ -287,6 +287,6 @@ PR / 이슈 환영합니다. 자세한 PRD는 [PRD.md](./PRD.md)를 참고해주
 
 <div align="center">
 
-**Made with ☕ by clabi.ai**
+**Made with ☕ by 서민성**
 
 </div>
