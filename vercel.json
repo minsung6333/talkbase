@@ -1,0 +1,14 @@
+{
+  "regions": ["icn1"],
+  "functions": {
+    "src/app/api/process/ai/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/recordings/[id]/edit/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/recordings/[id]/regenerate/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
