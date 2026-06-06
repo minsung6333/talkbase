@@ -1,13 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { generateFileKey } from '@/lib/r2'
-import { startMultipartUpload } from '@/lib/r2-multipart'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
 
-// 멀티파트 업로드 초기화
-// 큰 파일(> 4MB)을 청크 단위로 R2에 누적 업로드하기 위한 첫 단계
+// 청크 업로드 초기화 (multipart 안 씀 — 임시 객체로 저장 후 결합)
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,9 +15,7 @@ export async function POST(request: Request) {
     const { filename, contentType, title, type, visibility, outputFormat, projectId } = await request.json()
 
     const fileKey = generateFileKey(user.id, filename)
-    const uploadId = await startMultipartUpload(fileKey, contentType || 'audio/x-m4a')
 
-    // Supabase에 recording 레코드 생성 (uploading 상태)
     const { data: recording, error } = await supabase
       .from('recordings')
       .insert({
@@ -42,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       recordingId: recording.id,
       fileKey,
-      uploadId,
+      contentType: contentType || 'audio/x-m4a',
     })
   } catch (err) {
     return NextResponse.json(

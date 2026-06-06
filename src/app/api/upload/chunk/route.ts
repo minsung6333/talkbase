@@ -1,14 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
-import { uploadChunk } from '@/lib/r2-multipart'
+import { putChunk, tempChunkKey } from '@/lib/r2-multipart'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-// 청크 PUT
-// 쿼리스트링으로 메타데이터 받고, body는 raw binary (Vercel body limit 회피)
-// 청크 크기 5MB 권장 (R2 multipart 최소). 단, Vercel 4.5MB 한도 이슈로 4MB로 보냄
-// → 마지막 청크는 더 작아도 OK, 나머지는 5MB여야 R2가 받음
+// 청크 PUT (R2 임시 객체로 저장)
+// 청크 크기는 4MB 권장 (Vercel Hobby 4.5MB body 한도 안)
+// R2 multipart 안 쓰므로 청크 크기 제한 없음
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,14 +16,12 @@ export async function POST(request: Request) {
   try {
     const url = new URL(request.url)
     const fileKey = url.searchParams.get('fileKey')
-    const uploadId = url.searchParams.get('uploadId')
     const partNumber = Number(url.searchParams.get('partNumber'))
 
-    if (!fileKey || !uploadId || !partNumber) {
+    if (!fileKey || !partNumber) {
       return NextResponse.json({ error: '필수 파라미터 누락' }, { status: 400 })
     }
 
-    // raw body 읽기
     const arrayBuffer = await request.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
@@ -32,8 +29,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '빈 청크' }, { status: 400 })
     }
 
-    const result = await uploadChunk(fileKey, uploadId, partNumber, buffer)
-    return NextResponse.json({ ...result, size: buffer.length })
+    const key = tempChunkKey(fileKey, partNumber)
+    await putChunk(key, buffer)
+
+    return NextResponse.json({ partNumber, size: buffer.length })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : '청크 업로드 실패' },

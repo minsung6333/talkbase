@@ -132,11 +132,11 @@ export default function UploadForm() {
     })
   }
 
-  // 4MB 초과 multipart 청크 업로드 (R2 multipart minimum 5MB)
+  // 4MB 초과 — 청크 업로드 (R2 임시 객체 → 결합)
   const uploadMultipart = async (f: File): Promise<string> => {
-    const CHUNK_SIZE = 5 * 1024 * 1024 // 5MB (R2 minimum)
+    const CHUNK_SIZE = 4 * 1024 * 1024 // 4MB (Vercel Hobby 4.5MB body 한도 안)
 
-    // 1. multipart 시작
+    // 1. 초기화
     const initRes = await fetch('/api/upload/init', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -157,21 +157,21 @@ export default function UploadForm() {
       const errBody = await initRes.json().catch(() => ({}))
       throw new Error(`[초기화] ${errBody.error || initRes.status}`)
     }
-    const { recordingId, fileKey, uploadId } = await initRes.json()
+    const { recordingId, fileKey, contentType } = await initRes.json()
 
+    let uploadedCount = 0
     try {
-      // 2. 청크 분할 + 순차 업로드
+      // 2. 청크 분할 + 순차 업로드 (R2 임시 객체에 저장)
       const totalChunks = Math.ceil(f.size / CHUNK_SIZE)
-      const parts: { PartNumber: number; ETag: string }[] = []
 
       for (let i = 0; i < totalChunks; i++) {
         const start = i * CHUNK_SIZE
         const end = Math.min(start + CHUNK_SIZE, f.size)
         const chunk = f.slice(start, end)
-
         const partNumber = i + 1
+
         const params = new URLSearchParams({
-          fileKey, uploadId, partNumber: String(partNumber),
+          fileKey, partNumber: String(partNumber),
         })
 
         const chunkRes = await fetch(`/api/upload/chunk?${params}`, {
@@ -182,19 +182,18 @@ export default function UploadForm() {
           const errBody = await chunkRes.json().catch(() => ({}))
           throw new Error(`[청크 ${partNumber}/${totalChunks}] ${errBody.error || chunkRes.status}`)
         }
-        const part = await chunkRes.json()
-        parts.push({ PartNumber: part.PartNumber, ETag: part.ETag })
+        uploadedCount++
 
-        // 진행률 (87%까지만, 나머지 13%는 완료 단계에)
-        setUploadProgress(Math.round(((i + 1) / totalChunks) * 87))
+        // 청크 업로드는 전체의 90%, 나머지 10%는 결합/STT 단계
+        setUploadProgress(Math.round(((i + 1) / totalChunks) * 90))
       }
 
-      // 3. multipart 완료 + STT 시작
+      // 3. 결합 + STT 시작
       setUploadProgress(95)
       const completeRes = await fetch('/api/upload/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recordingId, fileKey, uploadId, parts }),
+        body: JSON.stringify({ recordingId, fileKey, totalChunks, contentType }),
       })
       if (!completeRes.ok) {
         const errBody = await completeRes.json().catch(() => ({}))
@@ -204,11 +203,11 @@ export default function UploadForm() {
       setUploadProgress(100)
       return recordingId
     } catch (err) {
-      // 실패 시 R2 multipart abort
+      // 실패 시 임시 청크 정리
       fetch('/api/upload/abort', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileKey, uploadId, recordingId }),
+        body: JSON.stringify({ fileKey, uploadedCount, recordingId }),
       }).catch(() => {})
       throw err
     }

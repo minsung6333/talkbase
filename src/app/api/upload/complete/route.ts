@@ -1,39 +1,32 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { completeMultipartUpload, abortMultipartUpload } from '@/lib/r2-multipart'
+import { assembleAndCleanup } from '@/lib/r2-multipart'
 import { submitTranscription } from '@/lib/rtzr'
 import { getDownloadPresignedUrl } from '@/lib/r2'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
-export const maxDuration = 30
+export const maxDuration = 60
 
-interface UploadedPart { PartNumber: number; ETag: string }
-
-// 멀티파트 완료 + STT 자동 시작
+// 모든 청크 결합 → 최종 파일 PUT → 임시 청크 삭제 → STT 시작
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { recordingId, fileKey, uploadId, parts } = await request.json()
+    const { recordingId, fileKey, totalChunks, contentType } = await request.json()
 
-    if (!recordingId || !fileKey || !uploadId || !Array.isArray(parts)) {
+    if (!recordingId || !fileKey || !totalChunks) {
       return NextResponse.json({ error: '필수 필드 누락' }, { status: 400 })
     }
 
-    // 1. R2에 multipart 완료 통보
+    // 1. 청크 결합 + 최종 PUT + 임시 청크 정리
     try {
-      await completeMultipartUpload(
-        fileKey,
-        uploadId,
-        (parts as UploadedPart[]).sort((a, b) => a.PartNumber - b.PartNumber)
-      )
+      await assembleAndCleanup(fileKey, totalChunks, contentType || 'audio/x-m4a')
     } catch (err) {
-      await abortMultipartUpload(fileKey, uploadId).catch(() => {})
       return NextResponse.json(
-        { error: `R2 완료 실패: ${err instanceof Error ? err.message : err}` },
+        { error: `결합 실패: ${err instanceof Error ? err.message : err}` },
         { status: 500 }
       )
     }
