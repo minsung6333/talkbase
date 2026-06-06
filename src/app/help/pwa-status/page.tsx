@@ -568,6 +568,45 @@ export default function PWAStatusPage() {
           )}
         </div>
 
+        {/* R2 CORS 강제 재설정 (어드민용) */}
+        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 space-y-3">
+          <div>
+            <h3 className="font-semibold text-orange-900 text-sm">🛠 R2 CORS 강제 재설정 (어드민)</h3>
+            <p className="text-xs text-orange-700 mt-1">
+              R2 대시보드 설정이 적용 안 될 때 코드로 직접 강제 적용해요.
+              <br />어드민만 작동합니다.
+            </p>
+          </div>
+
+          <button
+            onClick={async () => {
+              const ok = confirm('R2 CORS를 강제로 재설정할까요?\n(모든 origin 허용 + 모든 메서드)')
+              if (!ok) return
+              const res = await fetch('/api/admin/fix-r2-cors', { method: 'POST' })
+              const data = await res.json()
+              if (res.ok) {
+                alert(`✅ CORS 재설정 완료!\n\n현재 설정:\n${JSON.stringify(data.after, null, 2)}\n\n잠시 후 업로드 테스트 다시 해주세요.`)
+              } else {
+                alert(`❌ 실패: ${data.error}\n\n${data.detail || ''}`)
+              }
+            }}
+            className="w-full flex items-center justify-center gap-2 bg-orange-500 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-orange-600 transition-colors"
+          >
+            🛠 R2 CORS 강제 재설정
+          </button>
+
+          <button
+            onClick={async () => {
+              const res = await fetch('/api/admin/fix-r2-cors')
+              const data = await res.json()
+              alert(`현재 R2 CORS:\n${JSON.stringify(data, null, 2)}`)
+            }}
+            className="w-full text-xs text-orange-700 underline"
+          >
+            현재 R2 CORS 조회 (확인용)
+          </button>
+        </div>
+
         {/* 초기화 */}
         <button
           onClick={clearAllData}
