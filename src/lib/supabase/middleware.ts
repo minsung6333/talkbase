@@ -48,6 +48,14 @@ export async function updateSession(request: NextRequest) {
   const isPublicPath = publicPaths.some(p => request.nextUrl.pathname.startsWith(p))
 
   if (!user && !isPublicPath) {
+    // API 호출은 redirect 대신 401 응답 (POST → 405 발생 방지)
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: '로그인이 필요합니다', code: 'AUTH_REQUIRED' },
+        { status: 401 }
+      )
+    }
+    // 페이지는 로그인 화면으로 redirect
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
