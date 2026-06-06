@@ -6,7 +6,13 @@ import PWAInstallPrompt from "@/components/ui/PWAInstallPrompt";
 const geist = Geist({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "TalkBase",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || 'https://talkbase-navy.vercel.app'
+  ),
+  title: {
+    default: "TalkBase",
+    template: "%s · TalkBase",
+  },
   description: "녹음된 대화를 업무 지식으로 바꾸다",
   manifest: "/manifest.json",
   icons: {
@@ -20,6 +26,18 @@ export const metadata: Metadata = {
   },
   formatDetection: {
     telephone: false,
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'ko_KR',
+    siteName: 'TalkBase',
+    title: 'TalkBase — 녹음된 대화를 업무 지식으로',
+    description: '회의를 녹음하면 AI가 STT, 화자분리, 요약, 회의록까지 자동으로 만들어드려요.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'TalkBase — 녹음된 대화를 업무 지식으로',
+    description: '회의를 녹음하면 AI가 STT, 화자분리, 요약, 회의록까지 자동으로 만들어드려요.',
   },
 };
 
