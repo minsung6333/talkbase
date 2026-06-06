@@ -497,8 +497,14 @@ export default function ResultView({ recording }: Props) {
 
       {/* 보고서 모달 */}
       {showReportModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] flex flex-col">
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowReportModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <Briefcase className="w-5 h-5 text-blue-500" /> 보고용 메일 작성
@@ -670,8 +676,14 @@ export default function ResultView({ recording }: Props) {
 
       {/* 공유 모달 */}
       {showShareModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl space-y-5">
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowShareModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl space-y-5"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <Share2 className="w-5 h-5 text-blue-500" /> 공유하기
@@ -752,8 +764,14 @@ export default function ResultView({ recording }: Props) {
 
       {/* 재생성 모달 */}
       {showRegenModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl space-y-5">
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowRegenModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl space-y-5"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <RefreshCw className="w-5 h-5 text-orange-500" /> 재생성

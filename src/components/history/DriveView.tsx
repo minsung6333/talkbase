@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import {
   FolderOpen, Folder, Plus, Users, Lock, ChevronRight,
@@ -54,6 +54,19 @@ export default function DriveView() {
   const [editName, setEditName] = useState('')
   const [moveTarget, setMoveTarget] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const moveMenuRef = useRef<HTMLDivElement | null>(null)
+
+  // 메뉴 바깥 클릭하면 닫기
+  useEffect(() => {
+    if (!moveTarget) return
+    const handler = (e: MouseEvent) => {
+      if (moveMenuRef.current && !moveMenuRef.current.contains(e.target as Node)) {
+        setMoveTarget(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [moveTarget])
 
   const loadProjects = useCallback(async () => {
     const res = await fetch('/api/projects')
@@ -326,7 +339,7 @@ export default function DriveView() {
                     {new Date(r.created_at).toLocaleDateString('ko-KR')}
                   </td>
                   <td className="px-3 py-3">
-                    <div className="relative">
+                    <div className="relative" ref={moveTarget === r.id ? moveMenuRef : undefined}>
                       <button
                         onClick={() => setMoveTarget(moveTarget === r.id ? null : r.id)}
                         className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"

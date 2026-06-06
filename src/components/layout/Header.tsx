@@ -17,10 +17,21 @@ export default function Header() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
-  const [isAdmin, setIsAdmin] = useState(false)
+  // sessionStorage에서 즉시 초기화 → 페이지 전환 시 깜박임 없음
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return sessionStorage.getItem('tb_isAdmin') === '1'
+  })
 
   useEffect(() => {
-    fetch('/api/me').then(r => r.json()).then(d => setIsAdmin(!!d.isAdmin)).catch(() => {})
+    fetch('/api/me')
+      .then(r => r.json())
+      .then(d => {
+        const admin = !!d.isAdmin
+        setIsAdmin(admin)
+        sessionStorage.setItem('tb_isAdmin', admin ? '1' : '0')
+      })
+      .catch(() => {})
   }, [])
 
   const handleLogout = async () => {

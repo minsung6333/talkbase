@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { UserPlus, Check, Crown, User, MoreHorizontal, Trash2, Mail, X } from 'lucide-react'
 import type { TeamMember } from '@/types'
 
@@ -11,6 +11,19 @@ export default function AdminPanel({ members: initial }: { members: TeamMember[]
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warn'; text: string } | null>(null)
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  // 메뉴 바깥 클릭하면 닫기
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
 
   const refreshMembers = async () => {
     const res = await fetch('/api/admin/members')
@@ -126,7 +139,7 @@ export default function AdminPanel({ members: initial }: { members: TeamMember[]
             const canDelete = m.role !== 'admin'
             return (
               <div key={m.id}
-                className={`flex items-center gap-3 py-3 px-2 rounded-xl hover:bg-gray-50 transition-colors group ${isDeleting ? 'opacity-50' : ''}`}>
+                className={`flex items-center gap-3 py-3 px-2 rounded-xl hover:bg-gray-50 transition-colors ${isDeleting ? 'opacity-50' : ''}`}>
                 {m.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={m.avatar_url} alt="" className="w-9 h-9 rounded-full flex-shrink-0" />
@@ -146,22 +159,27 @@ export default function AdminPanel({ members: initial }: { members: TeamMember[]
                     <p className="text-xs text-gray-400 truncate">{m.email}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+
+                {/* 상태 뱃지 */}
+                <div className="flex-shrink-0 w-20 flex justify-end">
                   {m.joined_at ? (
-                    <span className="flex items-center gap-1 text-xs text-green-600">
+                    <span className="flex items-center gap-1 text-xs text-green-600 whitespace-nowrap">
                       <Check className="w-3.5 h-3.5" /> 가입됨
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs text-yellow-600">
+                    <span className="flex items-center gap-1 text-xs text-yellow-600 whitespace-nowrap">
                       <Mail className="w-3.5 h-3.5" /> 초대 대기
                     </span>
                   )}
+                </div>
 
+                {/* 더보기 메뉴 (어드민 아닌 사람만) */}
+                <div className="flex-shrink-0 w-8 flex justify-end">
                   {canDelete && (
-                    <div className="relative">
+                    <div className="relative" ref={menuOpen === m.id ? menuRef : undefined}>
                       <button
                         onClick={() => setMenuOpen(menuOpen === m.id ? null : m.id)}
-                        className="p-1.5 text-gray-300 hover:text-gray-600 rounded-lg hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-white rounded-lg transition-colors"
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
