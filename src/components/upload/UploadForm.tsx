@@ -86,6 +86,14 @@ export default function UploadForm() {
       })
 
       if (!presignRes.ok) {
+        // 401/405는 인증 만료 → 재로그인 안내
+        if (presignRes.status === 401 || presignRes.status === 405) {
+          throw new Error(
+            `[1단계] 로그인이 만료됐어요\n\n` +
+            `우측 상단 ⬆ 아이콘으로 로그아웃 후 다시 Google 로그인해주세요.\n` +
+            `(HTTP ${presignRes.status})`
+          )
+        }
         const errBody = await presignRes.json().catch(() => ({}))
         throw new Error(`[1단계] 업로드 URL 생성 실패: ${errBody.error || presignRes.status}`)
       }
