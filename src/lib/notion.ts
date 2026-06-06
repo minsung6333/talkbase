@@ -8,7 +8,7 @@ const DATABASE_ID = process.env.NOTION_DATABASE_ID!
 const TYPE_LABEL: Record<string, string> = {
   team_meeting: 'Team Meeting',
   client_meeting: 'Client Meeting',
-  one_on_one: '1:1',
+  phone_call: 'Phone Call',
   other: 'Other',
 }
 

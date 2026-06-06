@@ -16,7 +16,7 @@ interface SearchResult {
 const TYPE_LABEL: Record<string, string> = {
   team_meeting: '팀 회의',
   client_meeting: '고객 미팅',
-  one_on_one: '1:1',
+  phone_call: '통화',
   other: '기타',
 }
 

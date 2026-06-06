@@ -179,7 +179,7 @@ export default function UploadForm() {
             {([
               ['team_meeting', '팀 회의'],
               ['client_meeting', '고객 미팅'],
-              ['one_on_one', '1:1 면담'],
+              ['phone_call', '통화'],
               ['other', '기타'],
             ] as [RecordingType, string][]).map(([value, label]) => (
               <button

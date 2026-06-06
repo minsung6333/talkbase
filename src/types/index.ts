@@ -1,4 +1,4 @@
-export type RecordingType = 'team_meeting' | 'client_meeting' | 'one_on_one' | 'other'
+export type RecordingType = 'team_meeting' | 'client_meeting' | 'phone_call' | 'other'
 export type Visibility = 'team' | 'private'
 export type OutputFormat = 'minutes' | 'summary'
 export type ProcessingStatus = 'uploading' | 'stt_pending' | 'stt_processing' | 'speaker_mapping' | 'ai_processing' | 'saving' | 'completed' | 'failed'
