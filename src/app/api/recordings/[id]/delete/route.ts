@@ -26,17 +26,10 @@ export async function DELETE(
   if (!recording) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (recording.user_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // 스토리지에서 파일 삭제 (Blob URL은 del, 옛날 R2 키는 R2 SDK)
+  // Vercel Blob에서 파일 삭제
   try {
     if (recording.file_key.startsWith('http')) {
       await del(recording.file_key)
-    } else {
-      const { r2Client } = await import('@/lib/r2')
-      const { DeleteObjectCommand } = await import('@aws-sdk/client-s3')
-      await r2Client.send(new DeleteObjectCommand({
-        Bucket: process.env.R2_BUCKET_NAME!,
-        Key: recording.file_key,
-      }))
     }
   } catch {}
 

@@ -22,10 +22,5 @@ export async function GET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Blob URL이면 그대로, 옛날 R2 키면 호환 처리
-  const url = recording.file_key.startsWith('http')
-    ? recording.file_key
-    : await import('@/lib/r2').then(m => m.getDownloadPresignedUrl(recording.file_key))
-
-  return NextResponse.json({ url })
+  return NextResponse.json({ url: recording.file_key })
 }

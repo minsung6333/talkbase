@@ -18,11 +18,6 @@ export async function GET(
 
   if (!recording) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // file_key가 이미 Blob URL (https://...)이면 그대로 반환
-  // 옛날 R2 키면 호환을 위해 R2 presign 시도
-  const url = recording.file_key.startsWith('http')
-    ? recording.file_key
-    : await import('@/lib/r2').then(m => m.getDownloadPresignedUrl(recording.file_key))
-
-  return NextResponse.json({ url })
+  // Vercel Blob URL은 file_key에 그대로 저장되어 있음
+  return NextResponse.json({ url: recording.file_key })
 }

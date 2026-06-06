@@ -475,19 +475,31 @@ export default function ResultView({ recording }: Props) {
 
       {/* STT 전문 */}
       {activeTab === 'stt' && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="space-y-1">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6">
+          <div className="divide-y divide-gray-50 sm:divide-y-0 sm:space-y-1">
             {sttResult.length === 0 ? (
               <p className="text-gray-400 text-sm">전사 결과가 없어요</p>
             ) : (
               sttResult.map((item, i) => (
-                <div key={i} className="flex gap-3 py-1.5 group">
+                <div key={i} className="py-3 sm:py-1.5 sm:flex sm:gap-3 sm:items-start">
+                  {/* 모바일: 위에 시간+화자 한 줄 */}
+                  <div className="flex items-center gap-2 sm:hidden mb-1.5">
+                    <button onClick={() => handleTimestampClick(item.start_at)}
+                      className="text-xs text-blue-500 hover:text-blue-700 font-mono hover:underline flex-shrink-0">
+                      {formatTime(item.start_at)}
+                    </button>
+                    <span className="text-xs font-semibold text-gray-700">{item.speaker}</span>
+                  </div>
+
+                  {/* 데스크탑: 시간 / 화자 / 텍스트 가로 정렬 */}
                   <button onClick={() => handleTimestampClick(item.start_at)}
-                    className="text-xs text-blue-500 hover:text-blue-700 flex-shrink-0 w-14 text-right font-mono mt-0.5 hover:underline">
+                    className="hidden sm:block text-xs text-blue-500 hover:text-blue-700 flex-shrink-0 w-14 text-right font-mono mt-0.5 hover:underline">
                     {formatTime(item.start_at)}
                   </button>
-                  <span className="text-sm font-medium text-gray-700 flex-shrink-0 w-20 truncate">{item.speaker}</span>
-                  <span className="text-sm text-gray-600 leading-relaxed">{item.text}</span>
+                  <span className="hidden sm:block text-sm font-medium text-gray-700 flex-shrink-0 w-20 truncate">{item.speaker}</span>
+
+                  {/* 텍스트 (둘 다 공통) */}
+                  <span className="block text-sm text-gray-700 sm:text-gray-600 leading-relaxed sm:flex-1">{item.text}</span>
                 </div>
               ))
             )}
