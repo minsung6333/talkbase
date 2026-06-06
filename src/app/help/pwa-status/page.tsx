@@ -36,26 +36,57 @@ export default function PWAStatusPage() {
         detail: location.protocol,
       })
 
-      // 2. manifest.webmanifest (Next.js 자동 생성)
+      // 2. manifest.webmanifest (Next.js 자동 생성) — 캐시 버스터 포함
+      const cacheBuster = `?_=${Date.now()}`
       let manifestOk = false
+      const errors: string[] = []
       for (const url of ['/manifest.webmanifest', '/manifest.json']) {
         try {
-          const res = await fetch(url, { cache: 'no-store' })
+          const res = await fetch(url + cacheBuster, { cache: 'no-store' })
           if (res.ok) {
-            const json = await res.json()
-            setManifestData(json)
-            newChecks.push({
-              label: `manifest 로드 (${url})`,
-              status: 'pass',
-              detail: `${json.name} · ${json.icons?.length || 0}개 아이콘 · ${res.headers.get('content-type')}`,
-            })
-            manifestOk = true
-            break
+            const text = await res.text()
+            try {
+              const json = JSON.parse(text)
+              setManifestData(json)
+              newChecks.push({
+                label: `manifest 로드 OK`,
+                status: 'pass',
+                detail: `${url} · ${json.name} · ${json.icons?.length || 0}개 아이콘 · ${res.headers.get('content-type')}`,
+              })
+              manifestOk = true
+              break
+            } catch {
+              errors.push(`${url}: 응답이 JSON 아님 (${text.slice(0, 60)}...)`)
+            }
+          } else {
+            errors.push(`${url}: HTTP ${res.status}`)
           }
-        } catch {}
+        } catch (e) {
+          errors.push(`${url}: ${e instanceof Error ? e.message : 'fetch 실패'}`)
+        }
       }
       if (!manifestOk) {
-        newChecks.push({ label: 'manifest 로드', status: 'fail', detail: '둘 다 실패' })
+        newChecks.push({
+          label: 'manifest 로드 실패',
+          status: 'fail',
+          detail: errors.join(' / '),
+        })
+      }
+
+      // 2-1. document.querySelector link rel="manifest"
+      const manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null
+      if (manifestLink) {
+        newChecks.push({
+          label: '<link rel="manifest"> 태그',
+          status: 'pass',
+          detail: manifestLink.href,
+        })
+      } else {
+        newChecks.push({
+          label: '<link rel="manifest"> 태그',
+          status: 'fail',
+          detail: 'HTML에 manifest 링크 없음',
+        })
       }
 
       // 3. Service Worker
