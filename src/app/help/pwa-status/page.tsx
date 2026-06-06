@@ -29,11 +29,17 @@ export default function PWAStatusPage() {
     const run = async () => {
       const newChecks: Check[] = []
 
-      // 1. HTTPS
+      // 1. HTTPS + Origin 정보
       newChecks.push({
         label: 'HTTPS 연결',
         status: location.protocol === 'https:' ? 'pass' : 'fail',
         detail: location.protocol,
+      })
+
+      newChecks.push({
+        label: '현재 Origin (R2 CORS 매칭용)',
+        status: 'pass',
+        detail: location.origin,
       })
 
       // 2. manifest.webmanifest (Next.js 자동 생성) — 캐시 버스터 포함
