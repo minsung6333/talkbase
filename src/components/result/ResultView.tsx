@@ -290,13 +290,7 @@ export default function ResultView({ recording }: Props) {
           <Share2 className="w-4 h-4" />
           {shareEnabled ? '공유 중' : '공유'}
         </button>
-        {recording.notion_page_url && (
-          <a href={recording.notion_page_url} target="_blank" rel="noopener noreferrer"
-            className="col-span-2 sm:col-auto flex items-center justify-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2.5 sm:py-2 hover:bg-gray-50 transition-colors">
-            <ExternalLink className="w-4 h-4" />
-            Notion에서 보기
-          </a>
-        )}
+        {/* Notion 링크는 내부 아카이브용으로 숨김 */}
       </div>
 
       {resendDone && (

@@ -73,7 +73,9 @@ export async function POST(request: Request) {
     // 4. 이메일 발송 (notification_email 우선, 없으면 로그인 이메일)
     const userEmail = recording.user?.notification_email || recording.user?.email
     if (userEmail) {
-      await sendResultEmail(userEmail, recording.title, aiResult, notionUrl)
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://talkbase-navy.vercel.app'
+      const resultUrl = `${baseUrl}/result/${recordingId}`
+      await sendResultEmail(userEmail, recording.title, aiResult, resultUrl)
         .catch(err => console.error('이메일 발송 실패:', err))
     }
 

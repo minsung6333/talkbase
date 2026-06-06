@@ -33,16 +33,16 @@ export async function sendResultEmail(
     <pre style="white-space: pre-wrap; font-family: inherit; font-size: 14px; line-height: 1.7; margin: 0; color: #374151;">${aiResult}</pre>
   </div>
 
-  <div style="border-top: 1px solid #E5E7EB; padding-top: 20px; display: flex; gap: 12px;">
+  ${notionUrl ? `<div style="border-top: 1px solid #E5E7EB; padding-top: 20px;">
     <a href="${notionUrl}"
-       style="display: inline-block; background: #1a1a1a; color: white; text-decoration: none;
+       style="display: inline-block; background: #1A60FD; color: white; text-decoration: none;
               padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;">
-      📎 Notion에서 보기
+      🔗 TalkBase에서 보기
     </a>
-  </div>
+  </div>` : ''}
 
   <p style="margin-top: 24px; font-size: 12px; color: #9CA3AF;">
-    AI 회의록 메이커 · 자동 발송 메일입니다
+    TalkBase · 자동 발송 메일입니다
   </p>
 </body>
 </html>`
