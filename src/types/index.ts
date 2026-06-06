@@ -12,6 +12,7 @@ export interface Recording {
   output_format: OutputFormat
   status: ProcessingStatus
   duration_seconds?: number
+  speaker_count?: number    // 참석자 수 (RTZR diarization 정확도용)
   file_key: string          // Cloudflare R2 key
   file_url?: string         // R2 signed URL
   stt_result?: SttResult[]

@@ -13,25 +13,29 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const { blobUrl, filename, title, type, visibility, outputFormat, projectId } = await request.json()
+    const { blobUrl, filename, title, type, visibility, outputFormat, projectId, speakerCount } = await request.json()
 
     if (!blobUrl) {
       return NextResponse.json({ error: 'blobUrl 누락' }, { status: 400 })
     }
 
-    // recording 레코드 생성 (file_key 컬럼에 Blob URL 저장 — 호환성)
+    const recordingData: Record<string, unknown> = {
+      user_id: user.id,
+      title,
+      type,
+      visibility,
+      output_format: outputFormat,
+      status: 'stt_processing',
+      file_key: blobUrl,
+      project_id: projectId || null,
+    }
+    if (speakerCount && Number(speakerCount) > 0) {
+      recordingData.speaker_count = Number(speakerCount)
+    }
+
     const { data: recording, error } = await supabase
       .from('recordings')
-      .insert({
-        user_id: user.id,
-        title,
-        type,
-        visibility,
-        output_format: outputFormat,
-        status: 'stt_processing',
-        file_key: blobUrl, // Blob은 URL 자체가 키 역할
-        project_id: projectId || null,
-      })
+      .insert(recordingData)
       .select('id')
       .single()
 
@@ -41,7 +45,9 @@ export async function POST(request: Request) {
 
     // STT 시작 (Blob URL은 public이라 그대로 전달 가능)
     try {
-      const jobId = await submitTranscription(blobUrl)
+      const jobId = await submitTranscription(blobUrl, {
+        speakerCount: speakerCount && Number(speakerCount) > 0 ? Number(speakerCount) : undefined,
+      })
 
       const db = createAdmin(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,

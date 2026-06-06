@@ -26,8 +26,17 @@ async function getAccessToken(): Promise<string> {
   return cachedToken!.access_token
 }
 
-export async function submitTranscription(audioUrl: string): Promise<string> {
+export async function submitTranscription(
+  audioUrl: string,
+  options?: { speakerCount?: number }
+): Promise<string> {
   const token = await getAccessToken()
+
+  // 참석자 수가 지정되면 정확한 수로, 아니면 자동 감지(0)
+  // RTZR 사양: spk_count_min/max 또는 단일 spk_count
+  const spkCount = options?.speakerCount && options.speakerCount > 0
+    ? options.speakerCount
+    : 0
 
   const res = await fetch(`${RTZR_API}/v1/transcribe`, {
     method: 'POST',
@@ -39,9 +48,15 @@ export async function submitTranscription(audioUrl: string): Promise<string> {
       config: {
         model_name: 'sommers',
         use_diarization: true,
-        diarization: { spk_count: 0 },   // 0 = 자동 감지
-        use_itn: true,                    // 역정규화 (숫자 등)
-        use_disfluency_filter: true,      // 필러 제거 (어, 음)
+        diarization: {
+          spk_count: spkCount,                       // 0 = 자동
+          ...(spkCount > 0 ? {
+            spk_count_min: spkCount,
+            spk_count_max: spkCount,
+          } : {}),
+        },
+        use_itn: true,
+        use_disfluency_filter: true,
         use_paragraph_splitter: true,
         paragraph_splitter: { min: 10, max: 50 },
       },

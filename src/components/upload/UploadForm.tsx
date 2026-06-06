@@ -22,6 +22,7 @@ export default function UploadForm() {
   const [visibility, setVisibility] = useState<Visibility>('team')
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('minutes')
   const [projectId, setProjectId] = useState<string>('')
+  const [speakerCount, setSpeakerCount] = useState<number | null>(null) // null = 자동 감지
   const [projects, setProjects] = useState<{ team: Project[]; personal: Project[] }>({ team: [], personal: [] })
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -99,6 +100,7 @@ export default function UploadForm() {
           visibility,
           outputFormat,
           projectId: projectId || null,
+          speakerCount,
         }),
       })
 
@@ -213,6 +215,41 @@ export default function UploadForm() {
                 }`}
               >
                 {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 참석자 수 (화자분리 정확도용) */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            참석자 수
+            <span className="ml-1.5 text-xs font-normal text-gray-400">(선택 — 정확하면 화자 분리가 더 정확해져요)</span>
+          </label>
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setSpeakerCount(null)}
+              className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                speakerCount === null
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              자동
+            </button>
+            {[2, 3, 4, 5, 6, 7, 8].map(n => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setSpeakerCount(n)}
+                className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                  speakerCount === n
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                }`}
+              >
+                {n}명
               </button>
             ))}
           </div>
