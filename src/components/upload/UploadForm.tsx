@@ -70,66 +70,147 @@ export default function UploadForm() {
     setError('')
 
     try {
-      // ===== 서버 프록시 단일 업로드 (Vercel API → R2) =====
-      // 클라이언트는 R2와 직접 통신 안 함 → CORS 문제 회피
-      // Vercel Hobby body 한도(4.5MB) 안에서 동작
+      // 4MB 이하 = 단일 업로드 (간단)
+      // 4MB 초과 = multipart 청크 업로드 (5MB 청크로)
+      const SINGLE_UPLOAD_LIMIT = 4 * 1024 * 1024
 
-      const VERCEL_BODY_LIMIT = 4.5 * 1024 * 1024
-      if (file.size > VERCEL_BODY_LIMIT) {
-        throw new Error(
-          `파일이 너무 커요 (${formatFileSize(file.size)})\n\n` +
-          `현재 서버 프록시 모드는 최대 ${formatFileSize(VERCEL_BODY_LIMIT)}까지 지원해요.\n` +
-          `더 큰 파일은 관리자에게 문의해주세요.`
-        )
+      let recordingId: string
+      if (file.size <= SINGLE_UPLOAD_LIMIT) {
+        recordingId = await uploadSingle(file)
+      } else {
+        recordingId = await uploadMultipart(file)
       }
 
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('title', title.trim())
-      formData.append('type', type)
-      formData.append('visibility', visibility)
-      formData.append('outputFormat', outputFormat)
-      if (projectId) formData.append('projectId', projectId)
-
-      // XHR로 진행률 표시
-      const result = await new Promise<{ recordingId: string }>((resolve, reject) => {
-        const xhr = new XMLHttpRequest()
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            setUploadProgress(Math.round((e.loaded / e.total) * 100))
-          }
-        })
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              resolve(JSON.parse(xhr.responseText))
-            } catch {
-              reject(new Error('응답 파싱 실패'))
-            }
-          } else if (xhr.status === 401) {
-            reject(new Error('로그인이 만료됐어요. 우측 상단 [→]로 로그아웃 후 다시 로그인해주세요.'))
-          } else if (xhr.status === 413) {
-            reject(new Error(`파일이 서버 한도 초과 (${formatFileSize(file.size)})`))
-          } else {
-            try {
-              const err = JSON.parse(xhr.responseText)
-              reject(new Error(err.error || `HTTP ${xhr.status}`))
-            } catch {
-              reject(new Error(`HTTP ${xhr.status}`))
-            }
-          }
-        })
-        xhr.addEventListener('error', () => reject(new Error('네트워크 오류')))
-        xhr.addEventListener('timeout', () => reject(new Error('업로드 시간 초과')))
-        xhr.open('POST', '/api/upload-direct')
-        xhr.timeout = 5 * 60 * 1000 // 5분
-        xhr.send(formData)
-      })
-
-      router.push(`/processing/${result.recordingId}`)
+      router.push(`/processing/${recordingId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : '업로드 중 오류가 발생했어요')
       setUploading(false)
+    }
+  }
+
+  // 4MB 이하 단일 업로드 (Vercel body 한도 안)
+  const uploadSingle = async (f: File): Promise<string> => {
+    const formData = new FormData()
+    formData.append('file', f)
+    formData.append('title', title.trim())
+    formData.append('type', type)
+    formData.append('visibility', visibility)
+    formData.append('outputFormat', outputFormat)
+    if (projectId) formData.append('projectId', projectId)
+
+    return new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          setUploadProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      })
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText)
+            resolve(data.recordingId)
+          } catch {
+            reject(new Error('응답 파싱 실패'))
+          }
+        } else if (xhr.status === 401) {
+          reject(new Error('로그인이 만료됐어요. 우측 상단 [→]로 로그아웃 후 다시 로그인해주세요.'))
+        } else {
+          try {
+            const err = JSON.parse(xhr.responseText)
+            reject(new Error(err.error || `HTTP ${xhr.status}`))
+          } catch {
+            reject(new Error(`HTTP ${xhr.status}`))
+          }
+        }
+      })
+      xhr.addEventListener('error', () => reject(new Error('네트워크 오류')))
+      xhr.addEventListener('timeout', () => reject(new Error('업로드 시간 초과')))
+      xhr.open('POST', '/api/upload-direct')
+      xhr.timeout = 5 * 60 * 1000
+      xhr.send(formData)
+    })
+  }
+
+  // 4MB 초과 multipart 청크 업로드 (R2 multipart minimum 5MB)
+  const uploadMultipart = async (f: File): Promise<string> => {
+    const CHUNK_SIZE = 5 * 1024 * 1024 // 5MB (R2 minimum)
+
+    // 1. multipart 시작
+    const initRes = await fetch('/api/upload/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: f.name,
+        contentType: f.type || 'audio/x-m4a',
+        title: title.trim(),
+        type,
+        visibility,
+        outputFormat,
+        projectId: projectId || null,
+      }),
+    })
+    if (!initRes.ok) {
+      if (initRes.status === 401) {
+        throw new Error('로그인이 만료됐어요. 우측 상단 [→]로 로그아웃 후 다시 로그인해주세요.')
+      }
+      const errBody = await initRes.json().catch(() => ({}))
+      throw new Error(`[초기화] ${errBody.error || initRes.status}`)
+    }
+    const { recordingId, fileKey, uploadId } = await initRes.json()
+
+    try {
+      // 2. 청크 분할 + 순차 업로드
+      const totalChunks = Math.ceil(f.size / CHUNK_SIZE)
+      const parts: { PartNumber: number; ETag: string }[] = []
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE
+        const end = Math.min(start + CHUNK_SIZE, f.size)
+        const chunk = f.slice(start, end)
+
+        const partNumber = i + 1
+        const params = new URLSearchParams({
+          fileKey, uploadId, partNumber: String(partNumber),
+        })
+
+        const chunkRes = await fetch(`/api/upload/chunk?${params}`, {
+          method: 'POST',
+          body: chunk,
+        })
+        if (!chunkRes.ok) {
+          const errBody = await chunkRes.json().catch(() => ({}))
+          throw new Error(`[청크 ${partNumber}/${totalChunks}] ${errBody.error || chunkRes.status}`)
+        }
+        const part = await chunkRes.json()
+        parts.push({ PartNumber: part.PartNumber, ETag: part.ETag })
+
+        // 진행률 (87%까지만, 나머지 13%는 완료 단계에)
+        setUploadProgress(Math.round(((i + 1) / totalChunks) * 87))
+      }
+
+      // 3. multipart 완료 + STT 시작
+      setUploadProgress(95)
+      const completeRes = await fetch('/api/upload/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recordingId, fileKey, uploadId, parts }),
+      })
+      if (!completeRes.ok) {
+        const errBody = await completeRes.json().catch(() => ({}))
+        throw new Error(`[완료] ${errBody.error || completeRes.status}`)
+      }
+
+      setUploadProgress(100)
+      return recordingId
+    } catch (err) {
+      // 실패 시 R2 multipart abort
+      fetch('/api/upload/abort', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileKey, uploadId, recordingId }),
+      }).catch(() => {})
+      throw err
     }
   }
 
