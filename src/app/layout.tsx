@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import PWAInstallPrompt from "@/components/ui/PWAInstallPrompt";
+import ServiceWorkerRegister from "@/components/ui/ServiceWorkerRegister";
 
 const geist = Geist({ subsets: ["latin"] });
 
@@ -59,6 +60,7 @@ export default function RootLayout({
       <body className={`${geist.className} min-h-full bg-gray-50 pb-16 md:pb-0`}>
         {children}
         <PWAInstallPrompt />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
