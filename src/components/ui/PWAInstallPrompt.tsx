@@ -120,7 +120,7 @@ export default function PWAInstallPrompt() {
           {/* 안드로이드: prompt 안 뜬 경우 수동 안내 */}
           {platform === 'android' && !deferredPrompt && (
             <div className="mt-3 text-xs text-gray-600 space-y-1.5 bg-gray-50 rounded-xl p-3">
-              <p className="font-medium text-gray-700 mb-1">크롬에서 설치하기</p>
+              <p className="font-medium text-gray-700 mb-1">크롬 / 삼성 인터넷에서 설치하기</p>
               <div className="flex items-center gap-1.5">
                 <span>1.</span>
                 <MoreVertical className="w-3.5 h-3.5 text-gray-500" />

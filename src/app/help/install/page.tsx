@@ -55,7 +55,7 @@ export default function InstallGuidePage() {
               tab === 'android' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
             }`}
           >
-            <Smartphone className="w-4 h-4" /> 갤럭시 / 안드로이드
+            <Smartphone className="w-4 h-4" /> Android
           </button>
         </div>
 
@@ -139,7 +139,7 @@ export default function InstallGuidePage() {
             iOS의 정책상 PWA 설치는 Safari에서만 가능해요. 크롬으로 사용은 가능하지만 홈 화면 추가는 Safari로 해주세요.
           </Faq>
           <Faq q="녹음 파일은 어디서 올리나요?">
-            갤럭시 녹음앱에서 만들어진 m4a 파일을 그대로 업로드할 수 있어요. 공유 → TalkBase 또는 파일 선택으로요.
+            Android 녹음앱에서 만들어진 m4a 파일을 그대로 업로드할 수 있어요. 공유 → TalkBase 또는 파일 선택으로요.
           </Faq>
         </div>
 
