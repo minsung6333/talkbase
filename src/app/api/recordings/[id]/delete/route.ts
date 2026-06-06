@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
-import { r2Client } from '@/lib/r2'
-import { DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { del } from '@vercel/blob'
 import { NextResponse } from 'next/server'
 
 export async function DELETE(
@@ -18,7 +17,6 @@ export async function DELETE(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 파일 키 조회
   const { data: recording } = await db
     .from('recordings')
     .select('file_key, user_id')
@@ -28,15 +26,20 @@ export async function DELETE(
   if (!recording) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (recording.user_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // R2에서 파일 삭제
+  // 스토리지에서 파일 삭제 (Blob URL은 del, 옛날 R2 키는 R2 SDK)
   try {
-    await r2Client.send(new DeleteObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME!,
-      Key: recording.file_key,
-    }))
+    if (recording.file_key.startsWith('http')) {
+      await del(recording.file_key)
+    } else {
+      const { r2Client } = await import('@/lib/r2')
+      const { DeleteObjectCommand } = await import('@aws-sdk/client-s3')
+      await r2Client.send(new DeleteObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME!,
+        Key: recording.file_key,
+      }))
+    }
   } catch {}
 
-  // DB에서 삭제
   await db.from('recordings').delete().eq('id', id)
 
   return NextResponse.json({ success: true })

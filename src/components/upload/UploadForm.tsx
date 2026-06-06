@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { upload } from '@vercel/blob/client'
 import { Upload, FileAudio, X, FolderOpen, Plus } from 'lucide-react'
 import type { RecordingType, Visibility, OutputFormat } from '@/types'
 
@@ -70,146 +71,48 @@ export default function UploadForm() {
     setError('')
 
     try {
-      // 4MB 이하 = 단일 업로드 (간단)
-      // 4MB 초과 = multipart 청크 업로드 (5MB 청크로)
-      const SINGLE_UPLOAD_LIMIT = 4 * 1024 * 1024
+      // ===== Vercel Blob 직접 업로드 =====
+      // 청크 분할 불필요, CORS 자동, 최대 5GB 가능
 
-      let recordingId: string
-      if (file.size <= SINGLE_UPLOAD_LIMIT) {
-        recordingId = await uploadSingle(file)
-      } else {
-        recordingId = await uploadMultipart(file)
+      const safeName = file.name.replace(/[^\w.\-가-힣]/g, '_')
+      const pathname = `recordings/${Date.now()}-${safeName}`
+
+      const blob = await upload(pathname, file, {
+        access: 'public',
+        handleUploadUrl: '/api/blob-upload',
+        contentType: file.type || 'audio/x-m4a',
+        onUploadProgress: (e) => {
+          setUploadProgress(Math.round((e.loaded / e.total) * 95))
+        },
+      })
+
+      // 업로드 완료 → recording 생성 + STT 시작
+      setUploadProgress(98)
+      const res = await fetch('/api/upload-blob-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blobUrl: blob.url,
+          filename: file.name,
+          title: title.trim(),
+          type,
+          visibility,
+          outputFormat,
+          projectId: projectId || null,
+        }),
+      })
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        throw new Error(errBody.error || `완료 처리 실패 (${res.status})`)
       }
 
+      const { recordingId } = await res.json()
+      setUploadProgress(100)
       router.push(`/processing/${recordingId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : '업로드 중 오류가 발생했어요')
       setUploading(false)
-    }
-  }
-
-  // 4MB 이하 단일 업로드 (Vercel body 한도 안)
-  const uploadSingle = async (f: File): Promise<string> => {
-    const formData = new FormData()
-    formData.append('file', f)
-    formData.append('title', title.trim())
-    formData.append('type', type)
-    formData.append('visibility', visibility)
-    formData.append('outputFormat', outputFormat)
-    if (projectId) formData.append('projectId', projectId)
-
-    return new Promise<string>((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          setUploadProgress(Math.round((e.loaded / e.total) * 100))
-        }
-      })
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const data = JSON.parse(xhr.responseText)
-            resolve(data.recordingId)
-          } catch {
-            reject(new Error('응답 파싱 실패'))
-          }
-        } else if (xhr.status === 401) {
-          reject(new Error('로그인이 만료됐어요. 우측 상단 [→]로 로그아웃 후 다시 로그인해주세요.'))
-        } else {
-          try {
-            const err = JSON.parse(xhr.responseText)
-            reject(new Error(err.error || `HTTP ${xhr.status}`))
-          } catch {
-            reject(new Error(`HTTP ${xhr.status}`))
-          }
-        }
-      })
-      xhr.addEventListener('error', () => reject(new Error('네트워크 오류')))
-      xhr.addEventListener('timeout', () => reject(new Error('업로드 시간 초과')))
-      xhr.open('POST', '/api/upload-direct')
-      xhr.timeout = 5 * 60 * 1000
-      xhr.send(formData)
-    })
-  }
-
-  // 4MB 초과 — 청크 업로드 (R2 임시 객체 → 결합)
-  const uploadMultipart = async (f: File): Promise<string> => {
-    const CHUNK_SIZE = 4 * 1024 * 1024 // 4MB (Vercel Hobby 4.5MB body 한도 안)
-
-    // 1. 초기화
-    const initRes = await fetch('/api/upload/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filename: f.name,
-        contentType: f.type || 'audio/x-m4a',
-        title: title.trim(),
-        type,
-        visibility,
-        outputFormat,
-        projectId: projectId || null,
-      }),
-    })
-    if (!initRes.ok) {
-      if (initRes.status === 401) {
-        throw new Error('로그인이 만료됐어요. 우측 상단 [→]로 로그아웃 후 다시 로그인해주세요.')
-      }
-      const errBody = await initRes.json().catch(() => ({}))
-      throw new Error(`[초기화] ${errBody.error || initRes.status}`)
-    }
-    const { recordingId, fileKey, contentType } = await initRes.json()
-
-    let uploadedCount = 0
-    try {
-      // 2. 청크 분할 + 순차 업로드 (R2 임시 객체에 저장)
-      const totalChunks = Math.ceil(f.size / CHUNK_SIZE)
-
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE
-        const end = Math.min(start + CHUNK_SIZE, f.size)
-        const chunk = f.slice(start, end)
-        const partNumber = i + 1
-
-        const params = new URLSearchParams({
-          fileKey, partNumber: String(partNumber),
-        })
-
-        const chunkRes = await fetch(`/api/upload/chunk?${params}`, {
-          method: 'POST',
-          body: chunk,
-        })
-        if (!chunkRes.ok) {
-          const errBody = await chunkRes.json().catch(() => ({}))
-          throw new Error(`[청크 ${partNumber}/${totalChunks}] ${errBody.error || chunkRes.status}`)
-        }
-        uploadedCount++
-
-        // 청크 업로드는 전체의 90%, 나머지 10%는 결합/STT 단계
-        setUploadProgress(Math.round(((i + 1) / totalChunks) * 90))
-      }
-
-      // 3. 결합 + STT 시작
-      setUploadProgress(95)
-      const completeRes = await fetch('/api/upload/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recordingId, fileKey, totalChunks, contentType }),
-      })
-      if (!completeRes.ok) {
-        const errBody = await completeRes.json().catch(() => ({}))
-        throw new Error(`[완료] ${errBody.error || completeRes.status}`)
-      }
-
-      setUploadProgress(100)
-      return recordingId
-    } catch (err) {
-      // 실패 시 임시 청크 정리
-      fetch('/api/upload/abort', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileKey, uploadedCount, recordingId }),
-      }).catch(() => {})
-      throw err
     }
   }
 
