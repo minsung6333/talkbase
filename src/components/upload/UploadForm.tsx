@@ -70,8 +70,11 @@ export default function UploadForm() {
     setError('')
 
     try {
-      // 1. Presigned URL 요청
-      const presignRes = await fetch('/api/upload/presign', {
+      // ===== 서버 프록시 청크 업로드 (R2 직접 통신 X, CORS 회피) =====
+      const CHUNK_SIZE = 4 * 1024 * 1024 // 4MB (Vercel Hobby body limit)
+
+      // 1. 멀티파트 업로드 초기화
+      const initRes = await fetch('/api/upload/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,39 +88,55 @@ export default function UploadForm() {
         }),
       })
 
-      if (!presignRes.ok) {
-        // 401/405는 인증 만료 → 재로그인 안내
-        if (presignRes.status === 401 || presignRes.status === 405) {
+      if (!initRes.ok) {
+        if (initRes.status === 401 || initRes.status === 405) {
           throw new Error(
-            `[1단계] 로그인이 만료됐어요\n\n` +
-            `우측 상단 ⬆ 아이콘으로 로그아웃 후 다시 Google 로그인해주세요.\n` +
-            `(HTTP ${presignRes.status})`
+            `[1단계] 로그인 만료됐어요\n\n` +
+            `우측 상단 [→] 아이콘으로 로그아웃 후 다시 Google 로그인해주세요.`
           )
         }
-        const errBody = await presignRes.json().catch(() => ({}))
-        throw new Error(`[1단계] 업로드 URL 생성 실패: ${errBody.error || presignRes.status}`)
+        const errBody = await initRes.json().catch(() => ({}))
+        throw new Error(`[1단계] 업로드 초기화 실패: ${errBody.error || initRes.status}`)
       }
-      const { uploadUrl, recordingId, fileKey } = await presignRes.json()
+      const { recordingId, fileKey, uploadId } = await initRes.json()
 
-      // 2. R2에 직접 업로드 (진행률 추적)
-      try {
-        await uploadWithProgress(file, uploadUrl, setUploadProgress, file.type || 'audio/x-m4a')
-      } catch (uploadErr) {
-        const msg = uploadErr instanceof Error ? uploadErr.message : '알 수 없는 오류'
-        throw new Error(
-          `[2단계] 파일 전송 실패: ${msg}\n\n` +
-          `가능한 원인:\n` +
-          `· 네트워크 연결 불안정 (재시도 권장)\n` +
-          `· 파일 크기가 너무 큼 (${formatFileSize(file.size)})\n` +
-          `· R2 CORS 설정 미흡`
-        )
+      // 2. 파일을 청크로 분할 → 순차 업로드
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+      const parts: { PartNumber: number; ETag: string }[] = []
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE
+        const end = Math.min(start + CHUNK_SIZE, file.size)
+        const chunk = file.slice(start, end)
+
+        const formData = new FormData()
+        formData.append('fileKey', fileKey)
+        formData.append('uploadId', uploadId)
+        formData.append('partNumber', String(i + 1))
+        formData.append('chunk', chunk, `part-${i + 1}`)
+
+        const chunkRes = await fetch('/api/upload/chunk', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!chunkRes.ok) {
+          const errBody = await chunkRes.json().catch(() => ({}))
+          throw new Error(`[2단계] 청크 ${i + 1}/${totalChunks} 업로드 실패: ${errBody.error || chunkRes.status}`)
+        }
+
+        const part = await chunkRes.json()
+        parts.push(part)
+
+        // 진행률 업데이트
+        setUploadProgress(Math.round(((i + 1) / totalChunks) * 100))
       }
 
-      // 3. 업로드 완료 → 처리 시작 요청
-      const startRes = await fetch('/api/process/start', {
+      // 3. 업로드 완료 + STT 시작
+      const startRes = await fetch('/api/upload/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recordingId, fileKey }),
+        body: JSON.stringify({ recordingId, fileKey, uploadId, parts }),
       })
       if (!startRes.ok) {
         const errBody = await startRes.json().catch(() => ({}))
