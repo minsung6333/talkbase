@@ -97,10 +97,10 @@ export default function PWAStatusPage() {
       })
 
       // 1-3. PWA 모드 / 쿠키 컨텍스트
-      const isStandalone =
+      const isPWAStandalone =
         window.matchMedia('(display-mode: standalone)').matches ||
         (window.navigator as { standalone?: boolean }).standalone === true
-      if (isStandalone) {
+      if (isPWAStandalone) {
         newChecks.push({
           label: 'PWA standalone 모드',
           status: 'pending',
