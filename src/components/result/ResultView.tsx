@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ExternalLink, Play, Pause, FileText, AlignLeft, Pencil, Check, X, RefreshCw, Loader2, Zap, Sparkles, SendHorizontal } from 'lucide-react'
+import { ExternalLink, Play, Pause, FileText, AlignLeft, Pencil, Check, X, RefreshCw, Loader2, Zap, Sparkles, SendHorizontal, Mail, Share2, Copy, Globe } from 'lucide-react'
 import type { Recording, SttResult } from '@/types'
 
 interface Props {
@@ -30,6 +30,12 @@ export default function ResultView({ recording }: Props) {
   const [showRegenModal, setShowRegenModal] = useState(false)
   const [regenFormat, setRegenFormat] = useState<'minutes' | 'summary'>(recording.output_format as 'minutes' | 'summary')
   const [regenPrompt, setRegenPrompt] = useState('')
+  const [resending, setResending] = useState(false)
+  const [resendDone, setResendDone] = useState('')
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareToken, setShareToken] = useState<string | null>(null)
+  const [shareEnabled, setShareEnabled] = useState(false)
+  const [copied, setCopied] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
@@ -38,6 +44,53 @@ export default function ResultView({ recording }: Props) {
       .then(d => setAudioUrl(d.url))
       .catch(() => {})
   }, [recording.id])
+
+  useEffect(() => {
+    setShareToken(recording.share_token || null)
+    setShareEnabled(!!recording.share_enabled)
+  }, [recording.share_token, recording.share_enabled])
+
+  // 메일 다시 보내기
+  const handleResend = async () => {
+    setResending(true)
+    const res = await fetch(`/api/recordings/${recording.id}/resend`, { method: 'POST' })
+    const data = await res.json()
+    if (res.ok) {
+      setResendDone(`✓ ${data.to}로 발송됐어요`)
+      setTimeout(() => setResendDone(''), 4000)
+    } else {
+      setResendDone(`❌ ${data.error}`)
+    }
+    setResending(false)
+  }
+
+  // 공유 활성화
+  const enableShare = async () => {
+    const res = await fetch(`/api/recordings/${recording.id}/share`, { method: 'POST' })
+    const data = await res.json()
+    if (res.ok) {
+      setShareToken(data.token)
+      setShareEnabled(true)
+    }
+  }
+
+  // 공유 비활성화
+  const disableShare = async () => {
+    if (!confirm('공유를 해제할까요? 현재 링크로는 더 이상 접근할 수 없게 돼요.')) return
+    const res = await fetch(`/api/recordings/${recording.id}/share`, { method: 'DELETE' })
+    if (res.ok) setShareEnabled(false)
+  }
+
+  const shareUrl = shareToken && typeof window !== 'undefined'
+    ? `${window.location.origin}/share/${shareToken}`
+    : ''
+
+  const copyShareUrl = async () => {
+    if (!shareUrl) return
+    await navigator.clipboard.writeText(shareUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   const handleTimestampClick = (seconds: number) => {
     const audio = audioRef.current
@@ -121,13 +174,38 @@ export default function ResultView({ recording }: Props) {
             })}
           </p>
         </div>
-        {recording.notion_page_url && (
-          <a href={recording.notion_page_url} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors flex-shrink-0">
-            <ExternalLink className="w-4 h-4" />Notion에서 보기
-          </a>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={handleResend}
+            disabled={resending}
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+            메일 보내기
+          </button>
+          <button
+            onClick={() => setShowShareModal(true)}
+            className={`flex items-center gap-1.5 text-sm rounded-xl px-3 py-2 transition-colors ${
+              shareEnabled
+                ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                : 'text-gray-600 hover:text-gray-900 border border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            <Share2 className="w-4 h-4" />
+            {shareEnabled ? '공유 중' : '공유'}
+          </button>
+          {recording.notion_page_url && (
+            <a href={recording.notion_page_url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors">
+              <ExternalLink className="w-4 h-4" />Notion
+            </a>
+          )}
+        </div>
       </div>
+
+      {resendDone && (
+        <div className="bg-blue-50 text-blue-700 rounded-xl px-4 py-2 text-sm">{resendDone}</div>
+      )}
 
       {/* 오디오 플레이어 */}
       {audioUrl && (
@@ -300,6 +378,78 @@ export default function ResultView({ recording }: Props) {
                   <span className="text-sm text-gray-600 leading-relaxed">{item.text}</span>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 공유 모달 */}
+      {showShareModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-blue-500" /> 공유하기
+              </h2>
+              <button onClick={() => setShowShareModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {!shareEnabled ? (
+              <>
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Globe className="w-4 h-4 text-gray-400" />
+                    <span className="font-medium text-gray-700">읽기 전용 공개 링크</span>
+                  </div>
+                  <ul className="text-xs text-gray-500 space-y-1 ml-6">
+                    <li>· 링크가 있는 누구나 볼 수 있어요</li>
+                    <li>· 받은 사람은 수정할 수 없어요</li>
+                    <li>· 언제든 공유를 해제할 수 있어요</li>
+                  </ul>
+                </div>
+                <button
+                  onClick={enableShare}
+                  className="w-full bg-blue-600 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  공유 링크 생성
+                </button>
+              </>
+            ) : (
+              <>
+                <div>
+                  <p className="text-xs font-medium text-gray-400 mb-2">공유 링크</p>
+                  <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-2 pl-3">
+                    <input
+                      readOnly
+                      value={shareUrl}
+                      className="flex-1 bg-transparent text-sm text-gray-700 focus:outline-none"
+                      onClick={e => (e.target as HTMLInputElement).select()}
+                    />
+                    <button
+                      onClick={copyShareUrl}
+                      className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      {copied
+                        ? <><Check className="w-3.5 h-3.5 text-green-500" /> 복사됨</>
+                        : <><Copy className="w-3.5 h-3.5" /> 복사</>
+                      }
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 rounded-xl p-3 text-xs text-green-700">
+                  ✓ 받은 사람은 읽기만 가능하고 수정할 수 없어요
+                </div>
+
+                <button
+                  onClick={disableShare}
+                  className="w-full border border-red-200 text-red-500 rounded-xl py-2.5 text-sm font-medium hover:bg-red-50 transition-colors"
+                >
+                  공유 해제
+                </button>
+              </>
             )}
           </div>
         </div>

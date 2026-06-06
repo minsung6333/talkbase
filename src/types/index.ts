@@ -19,6 +19,8 @@ export interface Recording {
   notion_page_url?: string
   rtzr_job_id?: string
   speaker_map?: Record<string, string>  // { "화자1": "홍길동" }
+  share_token?: string | null
+  share_enabled?: boolean
   created_at: string
   updated_at: string
   user?: {

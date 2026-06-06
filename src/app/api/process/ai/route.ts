@@ -30,10 +30,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    // 업로더 이메일 조회
+    // 업로더 이메일 조회 (notification_email 우선)
     const { data: member } = await admin
       .from('team_members')
-      .select('email, full_name, avatar_url')
+      .select('email, full_name, avatar_url, notification_email')
       .eq('user_id', recording.user_id)
       .single()
 
@@ -70,8 +70,8 @@ export async function POST(request: Request) {
       notion_page_url: notionUrl,
     }).eq('id', recordingId)
 
-    // 4. 이메일 발송
-    const userEmail = recording.user?.email
+    // 4. 이메일 발송 (notification_email 우선, 없으면 로그인 이메일)
+    const userEmail = recording.user?.notification_email || recording.user?.email
     if (userEmail) {
       await sendResultEmail(userEmail, recording.title, aiResult, notionUrl)
         .catch(err => console.error('이메일 발송 실패:', err))

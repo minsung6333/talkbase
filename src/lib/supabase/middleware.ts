@@ -28,7 +28,11 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   // 로그인 필요한 페이지 보호
-  const publicPaths = ['/login', '/auth/callback', '/invite', '/api/process/']
+  const publicPaths = [
+    '/login', '/auth/callback', '/invite',
+    '/api/process/',
+    '/share/', '/api/share/',   // 공유 페이지 (인증 불필요)
+  ]
   const isPublicPath = publicPaths.some(p => request.nextUrl.pathname.startsWith(p))
 
   if (!user && !isPublicPath) {

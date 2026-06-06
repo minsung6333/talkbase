@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Mic, Home, FolderOpen, Search, Settings, LogOut, type LucideIcon } from 'lucide-react'
+import { Mic, Home, FolderOpen, Search, Settings, LogOut, User, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import TalkBaseLogo from '@/components/ui/TalkBaseLogo'
@@ -60,17 +60,29 @@ export default function Header() {
                 </Link>
               )
             })}
+            <Link href="/profile"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ml-1 ${
+                pathname.startsWith('/profile') ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              }`}>
+              <User className="w-4 h-4" />
+            </Link>
             <button onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors ml-1">
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
               <LogOut className="w-4 h-4" />
             </button>
           </nav>
 
-          {/* 모바일 로그아웃 */}
-          <button onClick={handleLogout}
-            className="md:hidden p-2 text-gray-400 hover:text-gray-600 transition-colors">
-            <LogOut className="w-5 h-5" />
-          </button>
+          {/* 모바일: 프로필 + 로그아웃 */}
+          <div className="md:hidden flex items-center gap-1">
+            <Link href="/profile"
+              className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+              <User className="w-5 h-5" />
+            </Link>
+            <button onClick={handleLogout}
+              className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 
