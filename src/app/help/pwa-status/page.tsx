@@ -269,6 +269,9 @@ export default function PWAStatusPage() {
         add('')
       }
 
+      // 0-1단계: presigned URL host 분석 (virtual-hosted vs path-style)
+      add('0️⃣-1 R2 endpoint 형식 분석 중...')
+
       add('1️⃣ Presign API 호출 중...')
       const presignRes = await fetch('/api/upload/presign', {
         method: 'POST',
@@ -293,7 +296,14 @@ export default function PWAStatusPage() {
 
       const presign = await presignRes.json()
       add(`✅ Presign 성공 (recordingId: ${presign.recordingId.slice(0, 8)}...)`)
-      add(`   URL: ${presign.uploadUrl.split('?')[0].slice(0, 80)}...`)
+
+      // Presigned URL 분석
+      const urlObj = new URL(presign.uploadUrl)
+      const hostParts = urlObj.host.split('.')
+      const isVirtualHosted = hostParts.length > 4 // ai-recorder.{account}.r2.cloudflarestorage.com
+      add(`   Host: ${urlObj.host}`)
+      add(`   Style: ${isVirtualHosted ? 'Virtual-hosted (bucket이 subdomain)' : 'Path-style'}`)
+      add(`   Path: ${urlObj.pathname.slice(0, 60)}...`)
 
       add('')
       add('2️⃣ R2 PUT 시도 중 (1KB 더미 파일)...')
@@ -322,13 +332,68 @@ export default function PWAStatusPage() {
       } catch (err) {
         const elapsed = Date.now() - startedAt
         add(`❌ R2 fetch 실패 (${elapsed}ms)`)
-        if (err instanceof TypeError) {
-          add(`   TypeError: ${err.message}`)
-          add(`   → CORS 차단 또는 네트워크 차단 가능성`)
-          add(`   → DevTools Network 탭에서 "PUT ${presign.uploadUrl.split('?')[0].slice(0, 40)}..." 요청 확인`)
-        } else {
-          add(`   ${err instanceof Error ? err.name + ': ' + err.message : String(err)}`)
+        add(`   ${err instanceof Error ? err.name + ': ' + err.message : String(err)}`)
+      }
+
+      // 3️⃣ XHR로 다시 시도 (fetch보다 상세한 에러 정보)
+      add('')
+      add('3️⃣ XHR로 PUT 재시도 (더 상세한 에러 정보)...')
+      await new Promise<void>((resolve) => {
+        const xhr = new XMLHttpRequest()
+        const t = Date.now()
+        xhr.open('PUT', presign.uploadUrl)
+        xhr.setRequestHeader('Content-Type', 'text/plain')
+        xhr.onload = () => {
+          add(`   XHR onload: status=${xhr.status} ${xhr.statusText || ''} (${Date.now() - t}ms)`)
+          if (xhr.responseText) add(`   응답: ${xhr.responseText.slice(0, 200)}`)
+          resolve()
         }
+        xhr.onerror = () => {
+          add(`   XHR onerror: status=${xhr.status} readyState=${xhr.readyState} (${Date.now() - t}ms)`)
+          add(`   → status=0 이면 CORS 또는 네트워크 차단`)
+          add(`   → 일반적으로 OPTIONS preflight 실패`)
+          resolve()
+        }
+        xhr.ontimeout = () => { add('   XHR timeout (30s)'); resolve() }
+        xhr.timeout = 30000
+        xhr.send(dummy)
+      })
+
+      // 4️⃣ no-cors 모드 시도 (CORS 우회, 응답 못 봄)
+      add('')
+      add('4️⃣ no-cors 모드 PUT 시도 (CORS 우회)...')
+      const t4 = Date.now()
+      try {
+        const ncRes = await fetch(presign.uploadUrl, {
+          method: 'PUT',
+          mode: 'no-cors',
+          body: dummy,
+        })
+        add(`   no-cors 응답: type=${ncRes.type} status=${ncRes.status} (${Date.now() - t4}ms)`)
+        add(`   → type='opaque'면 요청은 보내짐 (응답은 못 봄)`)
+        add(`   → 진짜 업로드 성공 여부는 R2 dashboard에서 확인 필요`)
+      } catch (err) {
+        add(`   no-cors도 실패 (${Date.now() - t4}ms)`)
+        add(`   → 네트워크 자체 차단됨`)
+        add(`   ${err instanceof Error ? err.message : String(err)}`)
+      }
+
+      // 5️⃣ 같은 host에 GET 시도
+      add('')
+      add('5️⃣ R2 host에 GET 요청 (인증 없이, 응답 헤더 확인)...')
+      const t5 = Date.now()
+      try {
+        const getRes = await fetch(`${urlObj.protocol}//${urlObj.host}/`, {
+          method: 'GET',
+          mode: 'cors',
+        })
+        add(`   GET 응답: ${getRes.status} (${Date.now() - t5}ms)`)
+        const aco = getRes.headers.get('Access-Control-Allow-Origin')
+        if (aco) add(`   ACAO: ${aco}`)
+      } catch (err) {
+        add(`   GET 실패 (${Date.now() - t5}ms): ${err instanceof Error ? err.message : err}`)
+        add(`   → 정상이면 403/404가 떠야 함 (인증 없으니까)`)
+        add(`   → 실패하면 R2 endpoint 도달 불가`)
       }
     } catch (err) {
       add(`❌ 예외: ${err instanceof Error ? err.message : String(err)}`)
