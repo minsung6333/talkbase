@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import type { SttResult, OutputFormat } from '@/types'
+import { TEMPLATES, type TemplateId } from './templates'
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -44,49 +45,9 @@ export async function generateAiResult(
     maxTokens = 8000
   }
 
-  const systemPrompt = outputFormat === 'minutes'
-    ? `당신은 전문 회의록 작성자입니다. 주어진 음성 전사 내용을 바탕으로 체계적인 회의록을 작성하세요.
-
-📐 분량 가이드 (회의 약 ${durationMin}분):
-${lengthGuide}
-긴 회의일수록 더 풍부하고 상세하게 작성하세요. 정보 손실 없이 정리하는 게 핵심입니다.
-
-회의록은 반드시 다음 형식으로 작성하세요:
-
-📋 회의록
-
-일시: {날짜}
-유형: {유형}
-참석자: {화자 목록}
-
-📌 안건
-- (논의된 주요 안건들)
-
-💬 주요 내용
-(주제별로 섹션을 나누어 정리. 화자별 핵심 발언 + 논의된 맥락 포함)
-
-✅ 결정사항
-- (회의에서 결정된 사항들)
-
-📌 액션아이템
-- [ ] 담당자: 업무내용 (기한이 언급된 경우 기재)`
-    : `당신은 전문 요약 작성자입니다. 주어진 음성 전사 내용을 바탕으로 핵심 요약을 작성하세요.
-
-📐 분량 가이드 (회의 약 ${durationMin}분):
-${lengthGuide}
-
-요약은 반드시 다음 형식으로 작성하세요:
-
-📝 요약
-
-핵심 요약
-- (회의 길이에 맞는 분량으로 핵심 내용)
-
-주요 논의사항
-(중요하게 논의된 내용을 주제별로 정리)
-
-결론
-(최종 결론 및 다음 단계)`
+  // 템플릿 조회 (없으면 회의록 폴백)
+  const template = TEMPLATES[outputFormat as TemplateId] || TEMPLATES.minutes
+  const systemPrompt = template.systemPromptBuilder(durationMin, lengthGuide)
 
   const userPrompt = `제목: ${title}
 날짜: ${date}

@@ -35,7 +35,8 @@ export async function generateMetadata(
     }
   }
 
-  const formatLabel = data.output_format === 'minutes' ? '회의록' : '요약'
+  const { TEMPLATES } = await import('@/lib/templates')
+  const formatLabel = TEMPLATES[data.output_format as keyof typeof TEMPLATES]?.name || '회의록'
   const typeLabel = TYPE_LABEL[data.type] || '기타'
   const description = `${typeLabel} · ${formatLabel} · TalkBase에서 공유된 회의 기록`
 

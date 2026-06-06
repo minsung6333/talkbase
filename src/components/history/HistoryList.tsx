@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Users, Lock, CheckCircle, Loader2, XCircle, Clock, FileText } from 'lucide-react'
+import { TEMPLATES } from '@/lib/templates'
 
 interface RecordingRow {
   id: string
@@ -55,7 +56,7 @@ function RecordingCard({ r }: { r: RecordingRow }) {
             <span className="text-xs text-gray-400">{TYPE_LABEL[r.type] || r.type}</span>
             <span className="text-xs text-gray-300">·</span>
             <span className="text-xs text-gray-400">
-              {r.output_format === 'minutes' ? '회의록' : '요약'}
+              {TEMPLATES[r.output_format as keyof typeof TEMPLATES]?.name || '회의록'}
             </span>
           </div>
           <h3 className="font-medium text-gray-900 truncate">{r.title}</h3>

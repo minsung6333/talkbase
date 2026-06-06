@@ -5,6 +5,18 @@ import type { Recording } from '@/types'
 const notion = new Client({ auth: process.env.NOTION_API_KEY })
 const DATABASE_ID = process.env.NOTION_DATABASE_ID!
 
+// Notion 데이터베이스의 Format 선택지에 매핑되는 영문 라벨
+// 새 템플릿 추가 시 Notion DB에도 해당 옵션 추가 필요
+const NOTION_FORMAT_LABEL: Record<string, string> = {
+  minutes: 'Minutes',
+  summary: 'Summary',
+  one_on_one: '1:1',
+  interview: 'Interview',
+  sales: 'Sales',
+  lecture: 'Lecture',
+  brainstorm: 'Brainstorm',
+}
+
 const TYPE_LABEL: Record<string, string> = {
   team_meeting: 'Team Meeting',
   client_meeting: 'Client Meeting',
@@ -34,7 +46,7 @@ export async function createNotionPage(recording: Recording, aiResult: string): 
         date: { start: recording.created_at.split('T')[0] },
       },
       Format: {
-        select: { name: recording.output_format === 'minutes' ? 'Minutes' : 'Summary' },
+        select: { name: NOTION_FORMAT_LABEL[recording.output_format] || 'Minutes' },
       },
     },
     children: blocks,

@@ -52,8 +52,10 @@ export default async function Image({ params }: { params: { token: string } }) {
   // 발화 수 (대략적인 길이 추정용)
   const utteranceCount = Array.isArray(recording.stt_result) ? recording.stt_result.length : 0
 
+  const { TEMPLATES } = await import('@/lib/templates')
+  const template = TEMPLATES[recording.output_format as keyof typeof TEMPLATES] || TEMPLATES.minutes
   const isMinutes = recording.output_format === 'minutes'
-  const formatLabel = isMinutes ? '📋 회의록' : '📝 요약'
+  const formatLabel = `${template.emoji} ${template.name}`
   const typeLabel = TYPE_LABEL[recording.type] || '기타'
 
   return new ImageResponse(

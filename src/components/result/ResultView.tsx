@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ExternalLink, Play, Pause, FileText, AlignLeft, Pencil, Check, X, RefreshCw, Loader2, Zap, Sparkles, SendHorizontal, Mail, Share2, Copy, Globe, Briefcase } from 'lucide-react'
 import type { Recording, SttResult } from '@/types'
+import { TEMPLATES } from '@/lib/templates'
 
 interface Props {
   recording: Recording
@@ -348,7 +349,7 @@ export default function ResultView({ recording }: Props) {
         <button onClick={() => setActiveTab('ai')}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'ai' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}>
           <FileText className="w-4 h-4" />
-          {recording.output_format === 'minutes' ? '회의록' : '요약'}
+          {TEMPLATES[recording.output_format as keyof typeof TEMPLATES]?.name || '회의록'}
         </button>
         <button onClick={() => setActiveTab('stt')}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'stt' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}>

@@ -1,6 +1,13 @@
 export type RecordingType = 'team_meeting' | 'client_meeting' | 'phone_call' | 'other'
 export type Visibility = 'team' | 'private'
-export type OutputFormat = 'minutes' | 'summary'
+export type OutputFormat =
+  | 'minutes'
+  | 'summary'
+  | 'one_on_one'
+  | 'interview'
+  | 'sales'
+  | 'lecture'
+  | 'brainstorm'
 export type ProcessingStatus = 'uploading' | 'stt_pending' | 'stt_processing' | 'speaker_mapping' | 'ai_processing' | 'saving' | 'completed' | 'failed'
 
 export interface Recording {
