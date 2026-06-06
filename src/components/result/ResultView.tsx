@@ -105,6 +105,28 @@ export default function ResultView({ recording }: Props) {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // OS 네이티브 공유 시트 (카톡, 메시지, 메일 등 자동)
+  const nativeShare = async () => {
+    if (!shareUrl) return
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `${recording.title} · TalkBase`,
+          text: `${recording.title} - TalkBase에서 공유된 회의록`,
+          url: shareUrl,
+        })
+      } catch (err) {
+        // 사용자가 취소하면 AbortError. 다른 에러면 복사 폴백
+        if (err instanceof Error && err.name !== 'AbortError') {
+          copyShareUrl()
+        }
+      }
+    } else {
+      // 네이티브 공유 미지원 시 복사 폴백
+      copyShareUrl()
+    }
+  }
+
   // 보고서 모달 열 때 기본 이메일 자동 채우기
   const openReportModal = async () => {
     setShowReportModal(true)
@@ -681,18 +703,28 @@ export default function ResultView({ recording }: Props) {
               </>
             ) : (
               <>
+                {/* OS 공유 버튼 (메인) */}
+                <button
+                  onClick={nativeShare}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  <Share2 className="w-4 h-4" />
+                  공유하기 (카톡 / 메시지 / 메일...)
+                </button>
+
+                {/* URL 표시 + 복사 (보조) */}
                 <div>
                   <p className="text-xs font-medium text-gray-400 mb-2">공유 링크</p>
                   <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-2 pl-3">
                     <input
                       readOnly
                       value={shareUrl}
-                      className="flex-1 bg-transparent text-sm text-gray-700 focus:outline-none"
+                      className="flex-1 bg-transparent text-sm text-gray-700 focus:outline-none truncate"
                       onClick={e => (e.target as HTMLInputElement).select()}
                     />
                     <button
                       onClick={copyShareUrl}
-                      className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0"
                     >
                       {copied
                         ? <><Check className="w-3.5 h-3.5 text-green-500" /> 복사됨</>
