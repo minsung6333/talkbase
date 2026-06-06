@@ -70,62 +70,63 @@ export default function UploadForm() {
     setError('')
 
     try {
-      // 1. Presigned URL 요청
-      const presignRes = await fetch('/api/upload/presign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: file.name,
-          contentType: file.type || 'audio/x-m4a',
-          title: title.trim(),
-          type,
-          visibility,
-          outputFormat,
-          projectId: projectId || null,
-        }),
-      })
+      // ===== 서버 프록시 단일 업로드 (Vercel API → R2) =====
+      // 클라이언트는 R2와 직접 통신 안 함 → CORS 문제 회피
+      // Vercel Hobby body 한도(4.5MB) 안에서 동작
 
-      if (!presignRes.ok) {
-        // 401/405는 인증 만료 → 재로그인 안내
-        if (presignRes.status === 401 || presignRes.status === 405) {
-          throw new Error(
-            `[1단계] 로그인이 만료됐어요\n\n` +
-            `우측 상단 ⬆ 아이콘으로 로그아웃 후 다시 Google 로그인해주세요.\n` +
-            `(HTTP ${presignRes.status})`
-          )
-        }
-        const errBody = await presignRes.json().catch(() => ({}))
-        throw new Error(`[1단계] 업로드 URL 생성 실패: ${errBody.error || presignRes.status}`)
-      }
-      const { uploadUrl, recordingId, fileKey } = await presignRes.json()
-
-      // 2. R2에 직접 업로드 (진행률 추적)
-      try {
-        await uploadWithProgress(file, uploadUrl, setUploadProgress, file.type || 'audio/x-m4a')
-      } catch (uploadErr) {
-        const msg = uploadErr instanceof Error ? uploadErr.message : '알 수 없는 오류'
+      const VERCEL_BODY_LIMIT = 4.5 * 1024 * 1024
+      if (file.size > VERCEL_BODY_LIMIT) {
         throw new Error(
-          `[2단계] 파일 전송 실패: ${msg}\n\n` +
-          `가능한 원인:\n` +
-          `· 네트워크 연결 불안정 (재시도 권장)\n` +
-          `· 파일 크기가 너무 큼 (${formatFileSize(file.size)})\n` +
-          `· R2 CORS 설정 미흡`
+          `파일이 너무 커요 (${formatFileSize(file.size)})\n\n` +
+          `현재 서버 프록시 모드는 최대 ${formatFileSize(VERCEL_BODY_LIMIT)}까지 지원해요.\n` +
+          `더 큰 파일은 관리자에게 문의해주세요.`
         )
       }
 
-      // 3. 업로드 완료 → 처리 시작 요청
-      const startRes = await fetch('/api/process/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recordingId, fileKey }),
-      })
-      if (!startRes.ok) {
-        const errBody = await startRes.json().catch(() => ({}))
-        throw new Error(`[3단계] STT 시작 실패: ${errBody.error || startRes.status}`)
-      }
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('title', title.trim())
+      formData.append('type', type)
+      formData.append('visibility', visibility)
+      formData.append('outputFormat', outputFormat)
+      if (projectId) formData.append('projectId', projectId)
 
-      // 4. 처리 중 페이지로 이동
-      router.push(`/processing/${recordingId}`)
+      // XHR로 진행률 표시
+      const result = await new Promise<{ recordingId: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            setUploadProgress(Math.round((e.loaded / e.total) * 100))
+          }
+        })
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText))
+            } catch {
+              reject(new Error('응답 파싱 실패'))
+            }
+          } else if (xhr.status === 401) {
+            reject(new Error('로그인이 만료됐어요. 우측 상단 [→]로 로그아웃 후 다시 로그인해주세요.'))
+          } else if (xhr.status === 413) {
+            reject(new Error(`파일이 서버 한도 초과 (${formatFileSize(file.size)})`))
+          } else {
+            try {
+              const err = JSON.parse(xhr.responseText)
+              reject(new Error(err.error || `HTTP ${xhr.status}`))
+            } catch {
+              reject(new Error(`HTTP ${xhr.status}`))
+            }
+          }
+        })
+        xhr.addEventListener('error', () => reject(new Error('네트워크 오류')))
+        xhr.addEventListener('timeout', () => reject(new Error('업로드 시간 초과')))
+        xhr.open('POST', '/api/upload-direct')
+        xhr.timeout = 5 * 60 * 1000 // 5분
+        xhr.send(formData)
+      })
+
+      router.push(`/processing/${result.recordingId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : '업로드 중 오류가 발생했어요')
       setUploading(false)
