@@ -32,6 +32,8 @@ export async function updateSession(request: NextRequest) {
     '/login', '/auth/callback', '/invite',
     '/api/process/',
     '/share/', '/api/share/',   // 공유 페이지 (인증 불필요)
+    '/help/',                    // 도움말 (인증 불필요)
+    '/api/access-request',       // 사용 요청 (비로그인 사용자가 요청)
   ]
   const isPublicPath = publicPaths.some(p => request.nextUrl.pathname.startsWith(p))
 

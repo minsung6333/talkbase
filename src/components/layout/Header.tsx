@@ -39,11 +39,12 @@ export default function Header() {
   return (
     <>
       <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 h-20 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 h-16 sm:h-20 flex items-center justify-between">
           {/* 로고 */}
           <Link href="/" className="flex items-center font-bold text-gray-900 flex-shrink-0">
-            <TalkBaseLogo variant="icon" size={56} />
-            <span className="tracking-tight text-lg -ml-1">TalkBase</span>
+            <span className="block sm:hidden"><TalkBaseLogo variant="icon" size={44} /></span>
+            <span className="hidden sm:block"><TalkBaseLogo variant="icon" size={56} /></span>
+            <span className="tracking-tight text-base sm:text-lg -ml-1">TalkBase</span>
           </Link>
 
           {/* 데스크탑 네비게이션 */}

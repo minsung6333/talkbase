@@ -55,6 +55,68 @@ export async function sendResultEmail(
   })
 }
 
+export async function sendAccessRequestEmail(data: {
+  name: string
+  email: string
+  company?: string
+  role?: string
+  purpose?: string
+}) {
+  const subject = `[TalkBase 사용 요청] ${data.name}${data.company ? ` (${data.company})` : ''}`
+
+  const html = `
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #0F172A; background: #ffffff;">
+
+  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 28px;">
+    <div style="width: 28px; height: 28px; background: #1A60FD; border-radius: 6px;"></div>
+    <span style="font-size: 14px; font-weight: 700; color: #94A3B8;">TalkBase · 사용 요청</span>
+  </div>
+
+  <h1 style="font-size: 22px; font-weight: 700; margin: 0 0 24px;">
+    🙋 새로운 사용 요청이 들어왔어요
+  </h1>
+
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <tr><td style="padding: 12px 0; border-bottom: 1px solid #E2E8F0; color: #64748B; width: 110px;">이름</td>
+        <td style="padding: 12px 0; border-bottom: 1px solid #E2E8F0; font-weight: 600;">${escapeHtml(data.name)}</td></tr>
+    <tr><td style="padding: 12px 0; border-bottom: 1px solid #E2E8F0; color: #64748B;">이메일</td>
+        <td style="padding: 12px 0; border-bottom: 1px solid #E2E8F0;">
+          <a href="mailto:${escapeHtml(data.email)}" style="color: #1A60FD; text-decoration: none;">${escapeHtml(data.email)}</a>
+        </td></tr>
+    ${data.company ? `<tr><td style="padding: 12px 0; border-bottom: 1px solid #E2E8F0; color: #64748B;">소속</td>
+        <td style="padding: 12px 0; border-bottom: 1px solid #E2E8F0;">${escapeHtml(data.company)}</td></tr>` : ''}
+    ${data.role ? `<tr><td style="padding: 12px 0; border-bottom: 1px solid #E2E8F0; color: #64748B;">직책</td>
+        <td style="padding: 12px 0; border-bottom: 1px solid #E2E8F0;">${escapeHtml(data.role)}</td></tr>` : ''}
+    ${data.purpose ? `<tr><td style="padding: 12px 0; color: #64748B; vertical-align: top;">사용 목적</td>
+        <td style="padding: 12px 0; line-height: 1.7; white-space: pre-wrap;">${escapeHtml(data.purpose)}</td></tr>` : ''}
+  </table>
+
+  <div style="margin-top: 32px; padding: 16px; background: #EFF4FF; border-radius: 12px;">
+    <p style="margin: 0; font-size: 13px; color: #1E40AF;">
+      💡 관리자 페이지에서 이 이메일(<strong>${escapeHtml(data.email)}</strong>)을 초대하면 사용 가능해요.
+    </p>
+  </div>
+
+  <p style="margin-top: 28px; font-size: 12px; color: #94A3B8;">TalkBase · 자동 발송 메일입니다</p>
+</body>
+</html>`
+
+  await transporter.sendMail({
+    from: `"TalkBase" <${process.env.WORKS_SMTP_FROM}>`,
+    to: 'msseo@clabi.ai',
+    replyTo: data.email,
+    subject,
+    html,
+  })
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
+}
+
 export async function sendInviteEmail(
   to: string,
   inviterName: string,

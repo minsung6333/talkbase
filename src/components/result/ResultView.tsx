@@ -251,52 +251,52 @@ export default function ResultView({ recording }: Props) {
   const sttResult: SttResult[] = recording.stt_result || []
 
   return (
-    <div className="space-y-5">
-      {/* 헤더 */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{recording.title}</h1>
-          <p className="text-sm text-gray-500 mt-1" suppressHydrationWarning>
-            {new Date(recording.created_at).toLocaleDateString('ko-KR', {
-              year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-            })}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-          <button
-            onClick={openReportModal}
-            className="flex items-center gap-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-xl px-3 py-2 transition-colors"
-          >
-            <Briefcase className="w-4 h-4" />
-            보고서 보내기
-          </button>
-          <button
-            onClick={handleResend}
-            disabled={resending}
-            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            {resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-            <span className="hidden sm:inline">메일 보내기</span>
-          </button>
-          <button
-            onClick={() => setShowShareModal(true)}
-            className={`flex items-center gap-1.5 text-sm rounded-xl px-3 py-2 transition-colors ${
-              shareEnabled
-                ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
-                : 'text-gray-600 hover:text-gray-900 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            <Share2 className="w-4 h-4" />
-            <span className="hidden sm:inline">{shareEnabled ? '공유 중' : '공유'}</span>
-          </button>
-          {recording.notion_page_url && (
-            <a href={recording.notion_page_url} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors">
-              <ExternalLink className="w-4 h-4" />
-              <span className="hidden sm:inline">Notion</span>
-            </a>
-          )}
-        </div>
+    <div className="space-y-4 sm:space-y-5">
+      {/* 헤더 — 제목 영역 */}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">{recording.title}</h1>
+        <p className="text-xs sm:text-sm text-gray-500 mt-1" suppressHydrationWarning>
+          {new Date(recording.created_at).toLocaleDateString('ko-KR', {
+            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+          })}
+        </p>
+      </div>
+
+      {/* 액션 버튼 — 모바일에선 풀너비 그리드, 데스크탑에선 인라인 */}
+      <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+        <button
+          onClick={openReportModal}
+          className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-xl px-3 py-2.5 sm:py-2 font-medium transition-colors"
+        >
+          <Briefcase className="w-4 h-4" />
+          보고서 보내기
+        </button>
+        <button
+          onClick={handleResend}
+          disabled={resending}
+          className="flex items-center justify-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2.5 sm:py-2 hover:bg-gray-50 transition-colors disabled:opacity-50"
+        >
+          {resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+          메일
+        </button>
+        <button
+          onClick={() => setShowShareModal(true)}
+          className={`flex items-center justify-center gap-1.5 text-sm rounded-xl px-3 py-2.5 sm:py-2 transition-colors ${
+            shareEnabled
+              ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+              : 'text-gray-600 hover:text-gray-900 border border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          <Share2 className="w-4 h-4" />
+          {shareEnabled ? '공유 중' : '공유'}
+        </button>
+        {recording.notion_page_url && (
+          <a href={recording.notion_page_url} target="_blank" rel="noopener noreferrer"
+            className="col-span-2 sm:col-auto flex items-center justify-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2.5 sm:py-2 hover:bg-gray-50 transition-colors">
+            <ExternalLink className="w-4 h-4" />
+            Notion에서 보기
+          </a>
+        )}
       </div>
 
       {resendDone && (
@@ -345,7 +345,7 @@ export default function ResultView({ recording }: Props) {
         <div className="space-y-3">
           {/* 툴바 */}
           <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto -mx-1 px-1 pb-1 scrollbar-hide flex-wrap">
               {!isEditing ? (
                 <>
                   {/* 직접 편집 */}
