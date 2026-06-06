@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Mail, User, Crown, Loader2, Check } from 'lucide-react'
+import { Mail, User, Crown, Loader2, Check, Activity, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 
 interface Profile {
   email?: string
@@ -107,6 +108,23 @@ export default function ProfileForm() {
           )}
         </div>
       </div>
+
+      {/* 진단 도구 */}
+      <Link
+        href="/help/pwa-status"
+        className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 p-5 hover:border-purple-200 hover:bg-purple-50/30 transition-all group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+            <Activity className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900 text-sm">업로드·PWA 진단</p>
+            <p className="text-xs text-gray-500 mt-0.5">업로드가 안 될 때 어디서 막히는지 확인</p>
+          </div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-purple-500 transition-colors" />
+      </Link>
     </div>
   )
 }

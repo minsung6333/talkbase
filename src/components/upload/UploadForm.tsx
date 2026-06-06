@@ -178,8 +178,16 @@ export default function UploadForm() {
       </div>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 whitespace-pre-line leading-relaxed">
-          ❌ {error}
+        <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 whitespace-pre-line leading-relaxed space-y-2">
+          <div>❌ {error}</div>
+          <a
+            href="/help/pwa-status"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block text-xs text-red-600 underline font-medium"
+          >
+            🔍 진단 도구에서 원인 확인 →
+          </a>
         </div>
       )}
 

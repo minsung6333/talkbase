@@ -252,6 +252,23 @@ export default function PWAStatusPage() {
     setUploadTest({ running: true, log: [] })
 
     try {
+      // 0단계: R2 endpoint reachability 테스트
+      add('0️⃣ R2 도메인 자체 도달 가능 여부 테스트...')
+      const r2BaseUrl = 'https://4a692ac2811accc5f488c3afdc3a4ff9.r2.cloudflarestorage.com/'
+      const t0 = Date.now()
+      try {
+        // no-cors 모드로 시도 (응답 받을 수 있는지만 확인)
+        await fetch(r2BaseUrl, { method: 'GET', mode: 'no-cors', cache: 'no-store' })
+        add(`✅ R2 도메인 도달 가능 (${Date.now() - t0}ms)`)
+      } catch (err) {
+        const elapsed = Date.now() - t0
+        add(`❌ R2 도메인 도달 불가 (${elapsed}ms)`)
+        add(`   ${err instanceof Error ? err.message : 'unknown'}`)
+        add('   → 네트워크가 cloudflarestorage.com을 차단 중일 가능성')
+        add('   → 회사/공공 WiFi, 보안 앱, 통신사 보안망 확인 필요')
+        add('')
+      }
+
       add('1️⃣ Presign API 호출 중...')
       const presignRes = await fetch('/api/upload/presign', {
         method: 'POST',
