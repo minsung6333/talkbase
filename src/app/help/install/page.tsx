@@ -143,8 +143,16 @@ export default function InstallGuidePage() {
           </Faq>
         </div>
 
+        {/* 진단 링크 */}
+        <div className="mt-8 bg-gray-50 rounded-2xl p-4 text-center">
+          <p className="text-xs text-gray-500 mb-2">설치가 안 되시나요?</p>
+          <Link href="/help/pwa-status" className="text-sm text-blue-600 hover:underline font-medium">
+            🔍 PWA 설치 진단 도구 →
+          </Link>
+        </div>
+
         {/* 푸터 */}
-        <div className="text-center mt-12 pb-12">
+        <div className="text-center mt-8 pb-12">
           <Link href="/login" className="text-sm text-blue-600 hover:underline">
             로그인 화면으로 돌아가기 →
           </Link>
