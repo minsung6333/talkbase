@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     template: "%s · TalkBase",
   },
   description: "녹음된 대화를 업무 지식으로 바꾸다",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   icons: {
     icon: [
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },

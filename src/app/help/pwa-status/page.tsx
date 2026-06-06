@@ -36,22 +36,26 @@ export default function PWAStatusPage() {
         detail: location.protocol,
       })
 
-      // 2. manifest.json
-      try {
-        const res = await fetch('/manifest.json')
-        if (res.ok) {
-          const json = await res.json()
-          setManifestData(json)
-          newChecks.push({
-            label: 'manifest.json 로드',
-            status: 'pass',
-            detail: `${json.name} · ${json.icons?.length || 0}개 아이콘`,
-          })
-        } else {
-          newChecks.push({ label: 'manifest.json 로드', status: 'fail' })
-        }
-      } catch {
-        newChecks.push({ label: 'manifest.json 로드', status: 'fail' })
+      // 2. manifest.webmanifest (Next.js 자동 생성)
+      let manifestOk = false
+      for (const url of ['/manifest.webmanifest', '/manifest.json']) {
+        try {
+          const res = await fetch(url, { cache: 'no-store' })
+          if (res.ok) {
+            const json = await res.json()
+            setManifestData(json)
+            newChecks.push({
+              label: `manifest 로드 (${url})`,
+              status: 'pass',
+              detail: `${json.name} · ${json.icons?.length || 0}개 아이콘 · ${res.headers.get('content-type')}`,
+            })
+            manifestOk = true
+            break
+          }
+        } catch {}
+      }
+      if (!manifestOk) {
+        newChecks.push({ label: 'manifest 로드', status: 'fail', detail: '둘 다 실패' })
       }
 
       // 3. Service Worker
