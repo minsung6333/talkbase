@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ExternalLink, Play, Pause, FileText, AlignLeft, Pencil, Check, X, RefreshCw, Loader2, Zap, Sparkles, SendHorizontal, Mail, Share2, Copy, Globe } from 'lucide-react'
+import { ExternalLink, Play, Pause, FileText, AlignLeft, Pencil, Check, X, RefreshCw, Loader2, Zap, Sparkles, SendHorizontal, Mail, Share2, Copy, Globe, Briefcase } from 'lucide-react'
 import type { Recording, SttResult } from '@/types'
 
 interface Props {
@@ -32,6 +32,19 @@ export default function ResultView({ recording }: Props) {
   const [regenPrompt, setRegenPrompt] = useState('')
   const [resending, setResending] = useState(false)
   const [resendDone, setResendDone] = useState('')
+
+  // 보고서 모달 상태
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportAddressee, setReportAddressee] = useState('부서장님')
+  const [reportEmail, setReportEmail] = useState('')
+  const [reportCustomPrompt, setReportCustomPrompt] = useState('')
+  const [reportIncludeShare, setReportIncludeShare] = useState(true)
+  const [reportText, setReportText] = useState('')
+  const [reportEditing, setReportEditing] = useState(false)
+  const [reportGenerating, setReportGenerating] = useState(false)
+  const [reportSending, setReportSending] = useState(false)
+  const [reportCopied, setReportCopied] = useState(false)
+  const [reportStatus, setReportStatus] = useState('')
   const [showShareModal, setShowShareModal] = useState(false)
   const [shareToken, setShareToken] = useState<string | null>(null)
   const [shareEnabled, setShareEnabled] = useState(false)
@@ -90,6 +103,81 @@ export default function ResultView({ recording }: Props) {
     await navigator.clipboard.writeText(shareUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  // 보고서 모달 열 때 기본 이메일 자동 채우기
+  const openReportModal = async () => {
+    setShowReportModal(true)
+    setReportText('')
+    setReportStatus('')
+    if (!reportEmail) {
+      try {
+        const res = await fetch('/api/profile')
+        const profile = await res.json()
+        setReportEmail(profile.notification_email || profile.email || '')
+      } catch {}
+    }
+  }
+
+  // 보고서 생성 (메일 발송 없이 미리보기만)
+  const generateReport = async () => {
+    if (!reportAddressee.trim()) return
+    setReportGenerating(true)
+    setReportStatus('')
+
+    const res = await fetch(`/api/recordings/${recording.id}/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        addressee: reportAddressee,
+        customPrompt: reportCustomPrompt,
+        includeShareLink: reportIncludeShare,
+        sendEmail: false,
+      }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setReportText(data.report)
+      setReportEditing(false)
+    } else {
+      setReportStatus(`❌ ${data.error || '생성 실패'}`)
+    }
+    setReportGenerating(false)
+  }
+
+  // 메일로 보고서 발송
+  const sendReport = async () => {
+    if (!reportEmail.trim() || !reportText.trim()) return
+    setReportSending(true)
+    setReportStatus('')
+
+    const res = await fetch(`/api/recordings/${recording.id}/report-send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reportText,
+        emailTo: reportEmail,
+      }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setReportStatus(`✓ ${reportEmail}로 발송됐어요`)
+      setTimeout(() => {
+        setShowReportModal(false)
+        setReportStatus('')
+      }, 1500)
+    } else {
+      setReportStatus(`❌ ${data.error || '발송 실패'}`)
+    }
+    setReportSending(false)
+  }
+
+  // 보고서 복사
+  const copyReport = async () => {
+    if (!reportText) return
+    await navigator.clipboard.writeText(reportText)
+    setReportCopied(true)
+    setTimeout(() => setReportCopied(false), 2000)
   }
 
   const handleTimestampClick = (seconds: number) => {
@@ -174,14 +262,21 @@ export default function ResultView({ recording }: Props) {
             })}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+          <button
+            onClick={openReportModal}
+            className="flex items-center gap-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-xl px-3 py-2 transition-colors"
+          >
+            <Briefcase className="w-4 h-4" />
+            보고서 보내기
+          </button>
           <button
             onClick={handleResend}
             disabled={resending}
             className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
             {resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-            메일 보내기
+            <span className="hidden sm:inline">메일 보내기</span>
           </button>
           <button
             onClick={() => setShowShareModal(true)}
@@ -192,12 +287,13 @@ export default function ResultView({ recording }: Props) {
             }`}
           >
             <Share2 className="w-4 h-4" />
-            {shareEnabled ? '공유 중' : '공유'}
+            <span className="hidden sm:inline">{shareEnabled ? '공유 중' : '공유'}</span>
           </button>
           {recording.notion_page_url && (
             <a href={recording.notion_page_url} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors">
-              <ExternalLink className="w-4 h-4" />Notion
+              <ExternalLink className="w-4 h-4" />
+              <span className="hidden sm:inline">Notion</span>
             </a>
           )}
         </div>
@@ -378,6 +474,179 @@ export default function ResultView({ recording }: Props) {
                   <span className="text-sm text-gray-600 leading-relaxed">{item.text}</span>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 보고서 모달 */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-blue-500" /> 보고용 메일 작성
+              </h2>
+              <button onClick={() => setShowReportModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {!reportText ? (
+                // 옵션 입력 화면
+                <>
+                  <p className="text-sm text-gray-500">
+                    상사에게 보고용으로 다시 정리해드려요. 화자 구분 없이 논의 흐름과 결정/액션 위주로 정리됩니다.
+                  </p>
+
+                  {/* 수신 호칭 */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">
+                      수신 호칭 <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={reportAddressee}
+                      onChange={e => setReportAddressee(e.target.value)}
+                      placeholder="예: 부서장님, 대표님, 팀장님"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <div className="flex gap-1.5 mt-2 flex-wrap">
+                      {['부서장님', '대표님', '팀장님', '본부장님'].map(s => (
+                        <button
+                          key={s}
+                          onClick={() => setReportAddressee(s)}
+                          className="text-xs text-gray-500 bg-gray-50 hover:bg-blue-50 hover:text-blue-600 rounded-lg px-2.5 py-1 transition-colors"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 추가 요청 */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">
+                      추가 요청 <span className="text-gray-400 font-normal">(선택)</span>
+                    </label>
+                    <textarea
+                      value={reportCustomPrompt}
+                      onChange={e => setReportCustomPrompt(e.target.value)}
+                      placeholder="예) 우리 팀 입장을 강조해줘 / 영어로 작성해줘 / 최대한 짧게"
+                      rows={2}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    />
+                  </div>
+
+                  {/* 공유 링크 포함 */}
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reportIncludeShare}
+                      onChange={e => setReportIncludeShare(e.target.checked)}
+                      className="w-4 h-4 accent-blue-600"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">공유 링크 포함</p>
+                      <p className="text-xs text-gray-400">상세 회의록 링크가 보고서에 자동 삽입돼요</p>
+                    </div>
+                  </label>
+
+                  {/* 생성 버튼 */}
+                  <button
+                    onClick={generateReport}
+                    disabled={reportGenerating || !reportAddressee.trim()}
+                    className="w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {reportGenerating
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> 작성 중...</>
+                      : <><Sparkles className="w-4 h-4" /> 보고서 생성</>
+                    }
+                  </button>
+
+                  {reportStatus && (
+                    <p className="text-sm text-center text-gray-500">{reportStatus}</p>
+                  )}
+                </>
+              ) : (
+                // 미리보기 / 발송 화면
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">미리보기</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setReportEditing(!reportEditing)}
+                        className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 transition-colors"
+                      >
+                        {reportEditing ? <><Check className="w-3 h-3" /> 완료</> : <><Pencil className="w-3 h-3" /> 편집</>}
+                      </button>
+                      <button
+                        onClick={() => { setReportText(''); setReportEditing(false) }}
+                        className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 transition-colors"
+                      >
+                        <RefreshCw className="w-3 h-3" /> 다시 만들기
+                      </button>
+                    </div>
+                  </div>
+
+                  {reportEditing ? (
+                    <textarea
+                      value={reportText}
+                      onChange={e => setReportText(e.target.value)}
+                      rows={18}
+                      className="w-full border border-blue-300 rounded-xl px-4 py-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono"
+                    />
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl p-4 max-h-[400px] overflow-y-auto">
+                      <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-gray-800">
+                        {reportText}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* 수신 이메일 */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">수신 이메일</label>
+                    <input
+                      type="email"
+                      value={reportEmail}
+                      onChange={e => setReportEmail(e.target.value)}
+                      placeholder="boss@company.com"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  {reportStatus && (
+                    <p className="text-sm text-center text-gray-500">{reportStatus}</p>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* 푸터 액션 */}
+            {reportText && (
+              <div className="flex gap-3 p-6 border-t border-gray-100">
+                <button
+                  onClick={copyReport}
+                  className="flex items-center justify-center gap-1.5 text-sm text-gray-600 border border-gray-200 rounded-xl px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                >
+                  {reportCopied
+                    ? <><Check className="w-4 h-4 text-green-500" /> 복사됨</>
+                    : <><Copy className="w-4 h-4" /> 복사</>
+                  }
+                </button>
+                <button
+                  onClick={sendReport}
+                  disabled={reportSending || !reportEmail.trim()}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {reportSending
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> 발송 중...</>
+                    : <><Mail className="w-4 h-4" /> 메일로 발송</>
+                  }
+                </button>
+              </div>
             )}
           </div>
         </div>
