@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { sendInviteEmail } from '@/lib/email'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -12,14 +13,14 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 어드민 권한 확인
-  const { data: member } = await admin
+  // 어드민 권한 확인 + 초대자 이름 조회
+  const { data: inviter } = await admin
     .from('team_members')
-    .select('role')
+    .select('role, full_name, email')
     .eq('user_id', user.id)
     .single()
 
-  if (member?.role !== 'admin') {
+  if (inviter?.role !== 'admin') {
     return NextResponse.json({ error: '권한이 없어요' }, { status: 403 })
   }
 
@@ -47,5 +48,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '초대 실패' }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true })
+  // 초대 메일 발송 (실패해도 초대는 유효)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://talkbase-navy.vercel.app'
+  const inviterName = inviter.full_name || inviter.email || '관리자'
+
+  let emailSent = true
+  try {
+    await sendInviteEmail(email, inviterName, appUrl)
+  } catch (err) {
+    console.error('초대 메일 발송 실패:', err)
+    emailSent = false
+  }
+
+  return NextResponse.json({ success: true, emailSent })
 }
