@@ -40,7 +40,12 @@ export async function POST(request: Request) {
       recordingData.speaker_count = Number(speakerCount)
     }
 
-    const { data: recording, error } = await supabase
+    // admin 클라이언트로 RLS 우회 (workspace_id 미들웨어에서 검증됨)
+    const adminDb = createAdmin(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const { data: recording, error } = await adminDb
       .from('recordings')
       .insert(recordingData)
       .select('id')
