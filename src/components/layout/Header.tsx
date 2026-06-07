@@ -233,8 +233,17 @@ export default function Header() {
             </button>
           </nav>
 
-          {/* 모바일: 프로필 + 로그아웃 */}
+          {/* 모바일: 슈퍼관리자 + 프로필 + 로그아웃 */}
           <div className="md:hidden flex items-center gap-1">
+            {isSuperAdmin && (
+              <Link href="/admin"
+                className={`p-2 transition-colors ${
+                  pathname.startsWith('/admin') ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
+                }`}
+                title="슈퍼 관리자">
+                <ShieldCheck className="w-5 h-5" />
+              </Link>
+            )}
             <Link href="/profile"
               className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
               <User className="w-5 h-5" />
