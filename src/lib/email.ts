@@ -10,13 +10,68 @@ const transporter = nodemailer.createTransport({
   },
 })
 
+// ────────────────────────────────────────────────
+// 공통 메일 발송 헬퍼 (스팸 점수 낮추는 헤더 + text 본문 포함)
+// ────────────────────────────────────────────────
+
+/** HTML에서 단순 텍스트 본문 추출 */
+function buildTextFromHtml(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/(div|h[1-6]|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
+ * 공통 메일 발송 헬퍼
+ * - text 본문 자동 생성 (multipart/alternative)
+ * - List-Unsubscribe 헤더로 정상 발송자 표시
+ * - Reply-To 헤더로 수신자 응답 경로 제공
+ */
+async function sendMail(opts: {
+  to: string
+  subject: string
+  html: string
+  replyTo?: string
+}) {
+  const from = process.env.WORKS_SMTP_FROM || ''
+  const text = buildTextFromHtml(opts.html)
+
+  await transporter.sendMail({
+    from: `"TalkBase" <${from}>`,
+    to: opts.to,
+    replyTo: opts.replyTo || from,
+    subject: opts.subject,
+    html: opts.html,
+    text,
+    headers: {
+      'List-Unsubscribe': `<mailto:${from}?subject=Unsubscribe>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      'X-Mailer': 'TalkBase',
+      'X-Entity-Ref-ID': `tb-${Date.now()}`,
+    },
+  })
+}
+
 export async function sendResultEmail(
   to: string,
   title: string,
   aiResult: string,
   notionUrl: string
 ) {
-  const subject = `✅ [${title}] 회의록이 완성되었습니다`
+  const subject = `[${title}] 회의록이 완성되었습니다`
 
   const html = `
 <!DOCTYPE html>
@@ -37,7 +92,7 @@ export async function sendResultEmail(
     <a href="${notionUrl}"
        style="display: inline-block; background: #1A60FD; color: white; text-decoration: none;
               padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;">
-      🔗 TalkBase에서 보기
+      TalkBase에서 보기
     </a>
   </div>` : ''}
 
@@ -47,12 +102,7 @@ export async function sendResultEmail(
 </body>
 </html>`
 
-  await transporter.sendMail({
-    from: `"TalkBase" <${process.env.WORKS_SMTP_FROM}>`,
-    to,
-    subject,
-    html,
-  })
+  await sendMail({ to, subject, html })
 }
 
 export async function sendAccessRequestEmail(data: {
@@ -104,12 +154,11 @@ export async function sendAccessRequestEmail(data: {
 </body>
 </html>`
 
-  await transporter.sendMail({
-    from: `"TalkBase" <${process.env.WORKS_SMTP_FROM}>`,
+  await sendMail({
     to: 'msseo@clabi.ai',
-    replyTo: data.email,
     subject,
     html,
+    replyTo: data.email,
   })
 }
 
@@ -127,7 +176,7 @@ export async function sendSignupNotificationEmail(
   appUrl: string
 ) {
   const displayName = signup.fullName || signup.email
-  const subject = `🔔 [TalkBase] 새 가입 신청 — ${displayName}`
+  const subject = `[TalkBase] 새 가입 신청 — ${displayName}`
 
   const html = `
 <!DOCTYPE html>
@@ -141,7 +190,7 @@ export async function sendSignupNotificationEmail(
   </div>
 
   <h1 style="font-size: 22px; font-weight: 700; margin: 0 0 24px;">
-    🔔 새 가입 신청이 들어왔어요
+    새 가입 신청이 들어왔어요
   </h1>
 
   <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
@@ -165,12 +214,7 @@ export async function sendSignupNotificationEmail(
 </body>
 </html>`
 
-  await transporter.sendMail({
-    from: `"TalkBase" <${process.env.WORKS_SMTP_FROM}>`,
-    to,
-    subject,
-    html,
-  })
+  await sendMail({ to, subject, html })
 }
 
 export async function sendInviteApprovalRequestEmail(
@@ -184,7 +228,7 @@ export async function sendInviteApprovalRequestEmail(
   },
   appUrl: string
 ) {
-  const subject = `🔔 [TalkBase] 초대 승인 요청 — ${data.workspaceName}`
+  const subject = `[TalkBase] 초대 승인 요청 — ${data.workspaceName}`
 
   const html = `
 <!DOCTYPE html>
@@ -198,7 +242,7 @@ export async function sendInviteApprovalRequestEmail(
   </div>
 
   <h1 style="font-size: 22px; font-weight: 700; margin: 0 0 24px;">
-    🔔 초대 발송 승인이 필요해요
+    초대 발송 승인이 필요해요
   </h1>
 
   <p style="font-size: 14px; line-height: 1.7; color: #475569; margin: 0 0 20px;">
@@ -228,12 +272,7 @@ export async function sendInviteApprovalRequestEmail(
 </body>
 </html>`
 
-  await transporter.sendMail({
-    from: `"TalkBase" <${process.env.WORKS_SMTP_FROM}>`,
-    to,
-    subject,
-    html,
-  })
+  await sendMail({ to, subject, html })
 }
 
 export async function sendSignupResultEmail(
@@ -243,8 +282,8 @@ export async function sendSignupResultEmail(
   rejectReason?: string
 ) {
   const subject = approved
-    ? '✅ [TalkBase] 가입이 승인됐어요'
-    : '😢 [TalkBase] 가입 신청 결과 안내'
+    ? '[TalkBase] 가입이 승인됐어요'
+    : '[TalkBase] 가입 신청 결과 안내'
 
   const html = approved ? `
 <!DOCTYPE html>
@@ -255,7 +294,7 @@ export async function sendSignupResultEmail(
     <div style="width: 28px; height: 28px; background: #1A60FD; border-radius: 6px;"></div>
     <span style="font-size: 14px; font-weight: 700; color: #94A3B8;">TalkBase</span>
   </div>
-  <h1 style="font-size: 24px; font-weight: 700; margin: 0 0 16px;">✅ 가입이 승인됐어요!</h1>
+  <h1 style="font-size: 24px; font-weight: 700; margin: 0 0 16px;">가입이 승인됐어요!</h1>
   <p style="font-size: 15px; line-height: 1.7; color: #475569; margin: 0 0 28px;">
     이제 TalkBase를 사용하실 수 있어요.<br/>
     워크스페이스를 새로 만들거나, 초대받은 워크스페이스에 합류할 수 있어요.
@@ -293,12 +332,7 @@ export async function sendSignupResultEmail(
 </body>
 </html>`
 
-  await transporter.sendMail({
-    from: `"TalkBase" <${process.env.WORKS_SMTP_FROM}>`,
-    to,
-    subject,
-    html,
-  })
+  await sendMail({ to, subject, html })
 }
 
 export async function sendInviteEmail(
@@ -317,8 +351,8 @@ export async function sendInviteEmail(
     : 'TalkBase'
 
   const subject = workspaceName
-    ? `🎉 ${inviterName}님이 ${workspaceName}에 초대했어요`
-    : `🎉 ${inviterName}님이 TalkBase로 초대했어요`
+    ? `${inviterName}님이 ${workspaceName}에 초대했어요`
+    : `${inviterName}님이 TalkBase로 초대했어요`
 
   const html = `
 <!DOCTYPE html>
@@ -334,7 +368,7 @@ export async function sendInviteEmail(
 
   <!-- 메인 -->
   <h1 style="font-size: 26px; font-weight: 700; margin: 0 0 16px; line-height: 1.3;">
-    🎉 ${inviterName}님이<br/>
+    ${inviterName}님이<br/>
     ${workspaceLabel}에 초대했어요
   </h1>
 
@@ -374,10 +408,5 @@ export async function sendInviteEmail(
 </body>
 </html>`
 
-  await transporter.sendMail({
-    from: `"TalkBase" <${process.env.WORKS_SMTP_FROM}>`,
-    to,
-    subject,
-    html,
-  })
+  await sendMail({ to, subject, html })
 }
