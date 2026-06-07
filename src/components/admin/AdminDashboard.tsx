@@ -231,8 +231,38 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleTestEmail = async () => {
+    setProcessingId('test-email')
+    try {
+      const res = await fetch('/api/admin/test-email', { method: 'POST' })
+      const d = await res.json()
+      if (res.ok) {
+        setMsg({ type: 'success', text: d.message })
+      } else {
+        const envInfo = d.envCheck
+          ? '\n환경: ' + Object.entries(d.envCheck).map(([k, v]) => `${k}=${v}`).join(', ')
+          : ''
+        setMsg({
+          type: 'error',
+          text: `❌ 메일 발송 실패: ${d.error}${envInfo}${d.stack ? '\n\n' + d.stack : ''}`,
+        })
+      }
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* 디버그: 테스트 메일 발송 */}
+      <div className="bg-yellow-50 border border-yellow-100 rounded-2xl p-3 flex items-center justify-between">
+        <span className="text-xs text-yellow-700">🔧 SMTP 진단</span>
+        <button onClick={handleTestEmail} disabled={processingId === 'test-email'}
+          className="text-xs bg-yellow-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-yellow-600 disabled:opacity-50">
+          {processingId === 'test-email' ? '발송 중...' : '테스트 메일 발송'}
+        </button>
+      </div>
+
       {/* 탭 */}
       <div className="flex gap-1 border-b border-gray-100">
         <TabButton active={tab === 'signups'} onClick={() => setTab('signups')}
@@ -289,7 +319,7 @@ export default function AdminDashboard() {
         <div className={`rounded-xl px-3 py-2 text-sm flex items-center justify-between ${
           msg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
         }`}>
-          <span>{msg.text}</span>
+          <pre className="text-xs whitespace-pre-wrap break-all font-sans flex-1">{msg.text}</pre>
           <button onClick={() => setMsg(null)} className="opacity-50 hover:opacity-100">
             <X className="w-3.5 h-3.5" />
           </button>
