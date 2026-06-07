@@ -22,6 +22,7 @@ export default function WorkspaceList() {
   const [creating, setCreating] = useState(false)
   const [switching, setSwitching] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [canCreate, setCanCreate] = useState(false)
 
   useEffect(() => {
     fetch('/api/workspaces')
@@ -29,7 +30,8 @@ export default function WorkspaceList() {
       .then(d => {
         setWorkspaces(d.workspaces || [])
         setCurrentId(d.currentId)
-        if (!d.workspaces?.length) setShowCreate(true)
+        setCanCreate(!!d.canCreateWorkspace)
+        if (!d.workspaces?.length && d.canCreateWorkspace) setShowCreate(true)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -145,8 +147,8 @@ export default function WorkspaceList() {
         </div>
       )}
 
-      {/* 새 워크스페이스 만들기 */}
-      {showCreate ? (
+      {/* 새 워크스페이스 만들기 — 개설 권한 있는 사람만 */}
+      {canCreate && showCreate ? (
         <form onSubmit={handleCreate} className="bg-white rounded-2xl border border-blue-200 p-5 space-y-3">
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-1.5">
@@ -187,7 +189,7 @@ export default function WorkspaceList() {
             )}
           </div>
         </form>
-      ) : (
+      ) : canCreate ? (
         <button
           onClick={() => setShowCreate(true)}
           className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 text-gray-500 rounded-2xl py-4 text-sm font-medium hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/30 transition-colors"
@@ -195,7 +197,7 @@ export default function WorkspaceList() {
           <Plus className="w-4 h-4" />
           새 워크스페이스 만들기
         </button>
-      )}
+      ) : null}
 
       {error && (
         <p className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2">❌ {error}</p>

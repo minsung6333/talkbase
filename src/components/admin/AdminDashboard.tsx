@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { UserPlus, Mail, Check, X, Loader2, Clock, User, Building2 } from 'lucide-react'
+import {
+  UserPlus, Mail, Check, X, Loader2, Clock, User, Building2,
+  Users as UsersIcon, Crown, Shield, Trash2, ShieldCheck, Star,
+} from 'lucide-react'
 
 interface Signup {
   id: string
@@ -27,14 +30,39 @@ interface InviteApproval {
   status: 'pending' | 'approved' | 'rejected'
 }
 
-type Tab = 'signups' | 'invites'
+type Tab = 'signups' | 'invites' | 'users'
 type StatusFilter = 'pending' | 'approved' | 'rejected'
+type UserTier = 'super_admin' | 'creator' | 'invited_only' | 'pending' | 'rejected' | 'unknown'
+
+interface AdminUser {
+  id: string
+  email: string
+  full_name: string | null
+  avatar_url: string | null
+  created_at: string
+  last_sign_in_at: string | null
+  tier: UserTier
+  signup: { status: string; reject_reason: string | null; reapplied_count: number; signup_created_at: string } | null
+  memberships: Array<{ workspace_id: string; workspace_name: string; role: string }>
+  is_owner_of_any: boolean
+}
+
+const TIER_INFO: Record<UserTier, { label: string; color: string; Icon: React.ElementType }> = {
+  super_admin: { label: '슈퍼 관리자', color: 'bg-purple-100 text-purple-700', Icon: ShieldCheck },
+  creator: { label: '개설자', color: 'bg-blue-100 text-blue-700', Icon: Star },
+  invited_only: { label: '초대 멤버', color: 'bg-gray-100 text-gray-600', Icon: User },
+  pending: { label: '심사 대기', color: 'bg-yellow-100 text-yellow-700', Icon: Clock },
+  rejected: { label: '거절됨', color: 'bg-red-100 text-red-700', Icon: X },
+  unknown: { label: '미분류', color: 'bg-gray-100 text-gray-500', Icon: User },
+}
 
 export default function AdminDashboard() {
   const [tab, setTab] = useState<Tab>('signups')
   const [filter, setFilter] = useState<StatusFilter>('pending')
   const [signups, setSignups] = useState<Signup[]>([])
   const [approvals, setApprovals] = useState<InviteApproval[]>([])
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [userSearch, setUserSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -46,10 +74,14 @@ export default function AdminDashboard() {
         const res = await fetch(`/api/admin/signups?status=${filter}`)
         const d = await res.json()
         setSignups(d.signups || [])
-      } else {
+      } else if (tab === 'invites') {
         const res = await fetch(`/api/admin/invite-approvals?status=${filter}`)
         const d = await res.json()
         setApprovals(d.approvals || [])
+      } else if (tab === 'users') {
+        const res = await fetch('/api/admin/users')
+        const d = await res.json()
+        setUsers(d.users || [])
       }
     } finally {
       setLoading(false)
@@ -121,6 +153,39 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleDeleteUser = async (u: AdminUser) => {
+    const name = u.full_name || u.email
+    const ok = confirm(
+      `⚠️ ${name} 계정을 완전히 삭제할까요?\n\n` +
+      `이 작업은 되돌릴 수 없어요:\n` +
+      `• Supabase 계정 (auth.users) 삭제\n` +
+      `• 본인이 owner인 워크스페이스(다른 멤버 없는 경우만) 통째로 삭제\n` +
+      `• 모든 멤버십, 가입 기록 삭제\n\n` +
+      `계속하려면 확인을 누르세요.`
+    )
+    if (!ok) return
+
+    setProcessingId(u.id)
+    const res = await fetch(`/api/admin/users/${u.id}`, { method: 'DELETE' })
+    const d = await res.json()
+    setProcessingId(null)
+    if (res.ok) {
+      setUsers((prev) => prev.filter((x) => x.id !== u.id))
+      setMsg({
+        type: 'success',
+        text: `✓ ${name} 삭제 완료 (워크스페이스 ${d.deletedWorkspaces || 0}개 함께 삭제)`,
+      })
+    } else if (res.status === 409 && d.blockingWorkspaces) {
+      const list = d.blockingWorkspaces.map((w: { name: string; memberCount: number }) => `• ${w.name} (다른 멤버 ${w.memberCount}명)`).join('\n')
+      setMsg({
+        type: 'error',
+        text: `❌ ${d.error}\n${list}`,
+      })
+    } else {
+      setMsg({ type: 'error', text: `❌ ${d.error || '실패'}` })
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* 탭 */}
@@ -129,21 +194,33 @@ export default function AdminDashboard() {
           icon={UserPlus} label="가입 신청" />
         <TabButton active={tab === 'invites'} onClick={() => setTab('invites')}
           icon={Mail} label="초대 승인" />
+        <TabButton active={tab === 'users'} onClick={() => setTab('users')}
+          icon={UsersIcon} label="전체 유저" />
       </div>
 
-      {/* 상태 필터 */}
-      <div className="flex gap-1.5">
-        {(['pending', 'approved', 'rejected'] as StatusFilter[]).map((s) => (
-          <button key={s} onClick={() => setFilter(s)}
-            className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
-              filter === s
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
-            }`}>
-            {s === 'pending' ? '⏳ 대기' : s === 'approved' ? '✅ 승인됨' : '🚫 거절됨'}
-          </button>
-        ))}
-      </div>
+      {/* 상태 필터 (users 탭에선 검색으로 대체) */}
+      {tab !== 'users' ? (
+        <div className="flex gap-1.5">
+          {(['pending', 'approved', 'rejected'] as StatusFilter[]).map((s) => (
+            <button key={s} onClick={() => setFilter(s)}
+              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
+                filter === s
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+              }`}>
+              {s === 'pending' ? '⏳ 대기' : s === 'approved' ? '✅ 승인됨' : '🚫 거절됨'}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <input
+          type="text"
+          value={userSearch}
+          onChange={(e) => setUserSearch(e.target.value)}
+          placeholder="이메일 또는 이름으로 검색"
+          className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      )}
 
       {msg && (
         <div className={`rounded-xl px-3 py-2 text-sm flex items-center justify-between ${
@@ -162,8 +239,10 @@ export default function AdminDashboard() {
         </div>
       ) : tab === 'signups' ? (
         <SignupList items={signups} filter={filter} processingId={processingId} onAction={handleSignupAction} />
-      ) : (
+      ) : tab === 'invites' ? (
         <InviteList items={approvals} filter={filter} processingId={processingId} onAction={handleInviteAction} />
+      ) : (
+        <UserList items={users} search={userSearch} processingId={processingId} onDelete={handleDeleteUser} />
       )}
     </div>
   )
@@ -303,6 +382,87 @@ function InviteList({ items, filter, processingId, onAction }: {
                     <X className="w-3.5 h-3.5" /> 거절
                   </button>
                 </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function UserList({ items, search, processingId, onDelete }: {
+  items: AdminUser[]
+  search: string
+  processingId: string | null
+  onDelete: (u: AdminUser) => void
+}) {
+  const q = search.trim().toLowerCase()
+  const filtered = q
+    ? items.filter((u) =>
+        u.email?.toLowerCase().includes(q) ||
+        u.full_name?.toLowerCase().includes(q)
+      )
+    : items
+
+  if (!filtered.length) return <EmptyState label={items.length ? '검색 결과가 없어요' : '유저가 없어요'} />
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-gray-400">총 {filtered.length}명 {q && `(검색 결과)`}</p>
+      {filtered.map((u) => {
+        const processing = processingId === u.id
+        const tierInfo = TIER_INFO[u.tier]
+        const TierIcon = tierInfo.Icon
+        return (
+          <div key={u.id}
+            className={`bg-white rounded-2xl border border-gray-100 p-4 ${processing ? 'opacity-50' : ''}`}>
+            <div className="flex items-start gap-3">
+              {u.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full flex-shrink-0" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <User className="w-5 h-5 text-gray-400" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-medium text-gray-900 truncate">{u.full_name || u.email}</p>
+                  <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium ${tierInfo.color}`}>
+                    <TierIcon className="w-3 h-3" /> {tierInfo.label}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                {u.memberships.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {u.memberships.map((m) => {
+                      const RoleIcon = m.role === 'owner' ? Crown : m.role === 'admin' ? Shield : User
+                      const roleColor = m.role === 'owner' ? 'text-yellow-500' : m.role === 'admin' ? 'text-blue-500' : 'text-gray-400'
+                      return (
+                        <span key={m.workspace_id}
+                          className="inline-flex items-center gap-1 text-[10px] bg-gray-50 text-gray-600 px-2 py-0.5 rounded-full">
+                          <RoleIcon className={`w-2.5 h-2.5 ${roleColor}`} />
+                          {m.workspace_name}
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+                <p className="text-xs text-gray-400 mt-1 flex items-center gap-2">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> 가입 {new Date(u.created_at).toLocaleDateString('ko-KR')}
+                  </span>
+                  {u.last_sign_in_at && (
+                    <span>· 최근 로그인 {new Date(u.last_sign_in_at).toLocaleDateString('ko-KR')}</span>
+                  )}
+                </p>
+              </div>
+              {u.tier !== 'super_admin' && (
+                <button onClick={() => onDelete(u)} disabled={processing}
+                  className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 disabled:opacity-50 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" /> 삭제
+                </button>
               )}
             </div>
           </div>

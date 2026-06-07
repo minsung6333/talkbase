@@ -20,11 +20,16 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const db = admin()
-  const { data } = await db
-    .from('workspace_members')
-    .select('role, workspaces(id, name, slug, created_at)')
-    .eq('user_id', user.id)
-    .order('joined_at', { ascending: true, nullsFirst: false })
+  const [{ data }, { data: signup }] = await Promise.all([
+    db.from('workspace_members')
+      .select('role, workspaces(id, name, slug, created_at)')
+      .eq('user_id', user.id)
+      .order('joined_at', { ascending: true, nullsFirst: false }),
+    db.from('user_signups')
+      .select('status')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
 
   const workspaces = (data || [])
     .filter((row) => row.workspaces)
@@ -37,7 +42,11 @@ export async function GET() {
   const cookieStore = await cookies()
   const currentId = cookieStore.get(WORKSPACE_COOKIE)?.value || null
 
-  return NextResponse.json({ workspaces, currentId })
+  return NextResponse.json({
+    workspaces,
+    currentId,
+    canCreateWorkspace: signup?.status === 'approved',
+  })
 }
 
 // POST: 새 워크스페이스 만들기 (기존 멤버십이 있는 사람만 가능)
@@ -54,22 +63,17 @@ export async function POST(request: Request) {
   const db = admin()
 
   // 워크스페이스 생성 가능 조건:
-  //  1) 기존 멤버십이 있거나
-  //  2) 슈퍼관리자가 가입 신청을 approved 처리한 사람
-  const [{ count: memberCount }, { data: signup }] = await Promise.all([
-    db.from('workspace_members')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id),
-    db.from('user_signups')
-      .select('status')
-      .eq('user_id', user.id)
-      .maybeSingle(),
-  ])
+  //  슈퍼관리자가 가입 신청을 approved 처리한 사용자만 (= 개설자 등급)
+  //  초대받은 멤버는 본인이 속한 워크스페이스만 사용 가능, 새 워크스페이스 생성 불가
+  const { data: signup } = await db
+    .from('user_signups')
+    .select('status')
+    .eq('user_id', user.id)
+    .maybeSingle()
 
-  const canCreate = (memberCount ?? 0) > 0 || signup?.status === 'approved'
-  if (!canCreate) {
+  if (signup?.status !== 'approved') {
     return NextResponse.json(
-      { error: '관리자 승인 후 워크스페이스를 만들 수 있어요' },
+      { error: '워크스페이스 개설 권한이 없어요 (관리자 승인 필요)' },
       { status: 403 }
     )
   }
