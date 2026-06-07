@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 import { getWorkspaceRole } from '@/lib/workspace'
-import { getSuperAdminNotificationEmail } from '@/lib/admin'
-import { sendInviteApprovalRequestEmail } from '@/lib/email'
+import { getSuperAdminNotificationEmail, isSuperAdmin } from '@/lib/admin'
+import { sendInviteApprovalRequestEmail, sendInviteEmail } from '@/lib/email'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -88,6 +88,57 @@ export async function POST(
     return NextResponse.json({ error: '이미 이 워크스페이스의 멤버예요' }, { status: 400 })
   }
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://talkbase-navy.vercel.app'
+  const inviterName = inviterMember.full_name || inviterMember.email || '관리자'
+
+  // 🚀 슈퍼관리자가 직접 초대한 경우 → 승인 큐 건너뛰고 즉시 발송
+  if (isSuperAdmin(user.email)) {
+    // workspace_members pending 추가
+    const { data: existingMember } = await d
+      .from('workspace_members')
+      .select('id')
+      .eq('workspace_id', id)
+      .eq('email', cleanEmail)
+      .maybeSingle()
+
+    if (!existingMember) {
+      await d.from('workspace_members').insert({
+        workspace_id: id,
+        email: cleanEmail,
+        role: 'member',
+        invited_by: user.id,
+      })
+    }
+
+    // 초대 토큰 발급
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { data: invite } = await d
+      .from('workspace_invites')
+      .insert({
+        workspace_id: id,
+        email: cleanEmail,
+        invited_by: user.id,
+        expires_at: expiresAt,
+      })
+      .select('token')
+      .single()
+
+    // 메일 발송
+    let emailSent = true
+    try {
+      await sendInviteEmail(cleanEmail, inviterName, appUrl, {
+        workspaceName: workspace?.name,
+        inviteToken: invite?.token,
+      })
+    } catch (err) {
+      console.error('초대 메일 발송 실패:', err)
+      emailSent = false
+    }
+
+    return NextResponse.json({ success: true, emailSent, autoApproved: true })
+  }
+
+  // 일반 owner/admin → 승인 큐 경로
   // 이미 pending 요청이 있는지 확인
   const { data: existingApproval } = await d
     .from('invite_approvals')
@@ -115,8 +166,6 @@ export async function POST(
   }
 
   // 슈퍼 관리자에게 알림 메일
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://talkbase-navy.vercel.app'
-  const inviterName = inviterMember.full_name || inviterMember.email || '관리자'
   const adminEmail = getSuperAdminNotificationEmail()
 
   if (adminEmail) {
