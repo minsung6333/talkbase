@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { ExternalLink, Play, Pause, FileText, AlignLeft, Pencil, Check, X, RefreshCw, Loader2, Zap, Sparkles, SendHorizontal, Mail, Share2, Copy, Globe, Briefcase } from 'lucide-react'
 import type { Recording, SttResult } from '@/types'
 import { TEMPLATES } from '@/lib/templates'
+import { groupSttBySpeaker } from '@/lib/stt'
 
 interface Props {
   recording: Recording
@@ -272,6 +273,7 @@ export default function ResultView({ recording }: Props) {
   }
 
   const sttResult: SttResult[] = recording.stt_result || []
+  const sttGroups = useMemo(() => groupSttBySpeaker(sttResult), [sttResult])
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -474,33 +476,33 @@ export default function ResultView({ recording }: Props) {
         </div>
       )}
 
-      {/* STT 전문 */}
+      {/* STT 전문 — 같은 화자의 연속 발화는 5초 이내 갭이면 한 블록으로 묶음 */}
       {activeTab === 'stt' && (
         <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6">
-          <div className="divide-y divide-gray-50 sm:divide-y-0 sm:space-y-1">
-            {sttResult.length === 0 ? (
+          <div className="divide-y divide-gray-50 sm:divide-y-0 sm:space-y-3">
+            {sttGroups.length === 0 ? (
               <p className="text-gray-400 text-sm">전사 결과가 없어요</p>
             ) : (
-              sttResult.map((item, i) => (
-                <div key={i} className="py-3 sm:py-1.5 sm:flex sm:gap-3 sm:items-start">
+              sttGroups.map((g, i) => (
+                <div key={i} className="py-4 sm:py-2 sm:flex sm:gap-3 sm:items-start">
                   {/* 모바일: 위에 시간+화자 한 줄 */}
                   <div className="flex items-center gap-2 sm:hidden mb-1.5">
-                    <button onClick={() => handleTimestampClick(item.start_at)}
+                    <button onClick={() => handleTimestampClick(g.start_at)}
                       className="text-xs text-blue-500 hover:text-blue-700 font-mono hover:underline flex-shrink-0">
-                      {formatTime(item.start_at)}
+                      {formatTime(g.start_at)}
                     </button>
-                    <span className="text-xs font-semibold text-gray-700">{item.speaker}</span>
+                    <span className="text-xs font-semibold text-gray-700">{g.speaker}</span>
                   </div>
 
                   {/* 데스크탑: 시간 / 화자 / 텍스트 가로 정렬 */}
-                  <button onClick={() => handleTimestampClick(item.start_at)}
+                  <button onClick={() => handleTimestampClick(g.start_at)}
                     className="hidden sm:block text-xs text-blue-500 hover:text-blue-700 flex-shrink-0 w-14 text-right font-mono mt-0.5 hover:underline">
-                    {formatTime(item.start_at)}
+                    {formatTime(g.start_at)}
                   </button>
-                  <span className="hidden sm:block text-sm font-medium text-gray-700 flex-shrink-0 w-20 truncate">{item.speaker}</span>
+                  <span className="hidden sm:block text-sm font-medium text-gray-700 flex-shrink-0 w-20 truncate">{g.speaker}</span>
 
-                  {/* 텍스트 (둘 다 공통) */}
-                  <span className="block text-sm text-gray-700 sm:text-gray-600 leading-relaxed sm:flex-1">{item.text}</span>
+                  {/* 텍스트 — 묶인 본문 */}
+                  <p className="text-sm text-gray-700 sm:text-gray-600 leading-relaxed sm:flex-1 whitespace-pre-wrap">{g.text}</p>
                 </div>
               ))
             )}

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Play, Pause, FileText, AlignLeft } from 'lucide-react'
 import type { SttResult } from '@/types'
 import { TEMPLATES } from '@/lib/templates'
+import { groupSttBySpeaker } from '@/lib/stt'
 
 interface SharedRecording {
   id: string
@@ -61,6 +62,7 @@ export default function SharedView({ recording, shareToken }: Props) {
   }
 
   const sttResult: SttResult[] = recording.stt_result || []
+  const sttGroups = useMemo(() => groupSttBySpeaker(sttResult), [sttResult])
 
   return (
     <div className="space-y-5">
@@ -118,18 +120,18 @@ export default function SharedView({ recording, shareToken }: Props) {
             {recording.ai_result || '내용이 없어요'}
           </pre>
         ) : (
-          <div className="space-y-1">
-            {sttResult.length === 0 ? (
+          <div className="space-y-3">
+            {sttGroups.length === 0 ? (
               <p className="text-gray-400 text-sm">전사 결과가 없어요</p>
             ) : (
-              sttResult.map((item, i) => (
-                <div key={i} className="flex gap-3 py-1.5 group">
-                  <button onClick={() => handleTimestampClick(item.start_at)}
+              sttGroups.map((g, i) => (
+                <div key={i} className="flex gap-3 py-2 group">
+                  <button onClick={() => handleTimestampClick(g.start_at)}
                     className="text-xs text-blue-500 hover:text-blue-700 flex-shrink-0 w-14 text-right font-mono mt-0.5 hover:underline">
-                    {formatTime(item.start_at)}
+                    {formatTime(g.start_at)}
                   </button>
-                  <span className="text-sm font-medium text-gray-700 flex-shrink-0 w-20 truncate">{item.speaker}</span>
-                  <span className="text-sm text-gray-600 leading-relaxed">{item.text}</span>
+                  <span className="text-sm font-medium text-gray-700 flex-shrink-0 w-20 truncate">{g.speaker}</span>
+                  <p className="text-sm text-gray-600 leading-relaxed flex-1 whitespace-pre-wrap">{g.text}</p>
                 </div>
               ))
             )}
