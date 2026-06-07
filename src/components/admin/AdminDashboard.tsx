@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   UserPlus, Mail, Check, X, Loader2, Clock, User, Building2,
-  Users as UsersIcon, Crown, Shield, Trash2, ShieldCheck, Star,
+  Users as UsersIcon, Crown, Shield, Trash2, ShieldCheck, Star, Ban,
 } from 'lucide-react'
 
 interface Signup {
@@ -30,7 +30,14 @@ interface InviteApproval {
   status: 'pending' | 'approved' | 'rejected'
 }
 
-type Tab = 'signups' | 'invites' | 'users'
+type Tab = 'signups' | 'invites' | 'users' | 'blocked'
+
+interface BlockedEmail {
+  id: string
+  email: string
+  reason: string | null
+  blocked_at: string
+}
 type StatusFilter = 'pending' | 'approved' | 'rejected'
 type UserTier = 'super_admin' | 'creator' | 'invited_only' | 'pending' | 'rejected' | 'unknown'
 
@@ -63,6 +70,9 @@ export default function AdminDashboard() {
   const [approvals, setApprovals] = useState<InviteApproval[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [userSearch, setUserSearch] = useState('')
+  const [blockedEmails, setBlockedEmails] = useState<BlockedEmail[]>([])
+  const [newBlockEmail, setNewBlockEmail] = useState('')
+  const [newBlockReason, setNewBlockReason] = useState('')
   const [loading, setLoading] = useState(false)
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -82,6 +92,10 @@ export default function AdminDashboard() {
         const res = await fetch('/api/admin/users')
         const d = await res.json()
         setUsers(d.users || [])
+      } else if (tab === 'blocked') {
+        const res = await fetch('/api/admin/blocked-emails')
+        const d = await res.json()
+        setBlockedEmails(d.blockedEmails || [])
       }
     } finally {
       setLoading(false)
@@ -153,6 +167,37 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleAddBlock = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newBlockEmail.trim()) return
+    const res = await fetch('/api/admin/blocked-emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: newBlockEmail.trim(), reason: newBlockReason.trim() }),
+    })
+    const d = await res.json()
+    if (res.ok) {
+      setNewBlockEmail('')
+      setNewBlockReason('')
+      setMsg({ type: 'success', text: `✓ ${newBlockEmail}을 차단했어요` })
+      load()
+    } else {
+      setMsg({ type: 'error', text: `❌ ${d.error || '실패'}` })
+    }
+  }
+
+  const handleUnblock = async (b: BlockedEmail) => {
+    if (!confirm(`${b.email} 차단을 해제할까요? 다시 로그인 가능해져요.`)) return
+    const res = await fetch(`/api/admin/blocked-emails/${b.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setBlockedEmails((prev) => prev.filter((x) => x.id !== b.id))
+      setMsg({ type: 'success', text: `✓ ${b.email} 차단 해제` })
+    } else {
+      const d = await res.json()
+      setMsg({ type: 'error', text: `❌ ${d.error || '실패'}` })
+    }
+  }
+
   const handleDeleteUser = async (u: AdminUser) => {
     const name = u.full_name || u.email
     const ok = confirm(
@@ -173,7 +218,7 @@ export default function AdminDashboard() {
       setUsers((prev) => prev.filter((x) => x.id !== u.id))
       setMsg({
         type: 'success',
-        text: `✓ ${name} 삭제 완료 (워크스페이스 ${d.deletedWorkspaces || 0}개 함께 삭제)`,
+        text: `✓ ${name} 삭제 완료 (워크스페이스 ${d.deletedWorkspaces || 0}개 함께 삭제, ${d.blockedEmail ? '이메일 영구 차단' : '차단 없음'})`,
       })
     } else if (res.status === 409 && d.blockingWorkspaces) {
       const list = d.blockingWorkspaces.map((w: { name: string; memberCount: number }) => `• ${w.name} (다른 멤버 ${w.memberCount}명)`).join('\n')
@@ -196,10 +241,12 @@ export default function AdminDashboard() {
           icon={Mail} label="초대 승인" />
         <TabButton active={tab === 'users'} onClick={() => setTab('users')}
           icon={UsersIcon} label="전체 유저" />
+        <TabButton active={tab === 'blocked'} onClick={() => setTab('blocked')}
+          icon={Ban} label="차단" />
       </div>
 
-      {/* 상태 필터 (users 탭에선 검색으로 대체) */}
-      {tab !== 'users' ? (
+      {/* 상태 필터 / 검색 / 차단 추가 */}
+      {tab === 'signups' || tab === 'invites' ? (
         <div className="flex gap-1.5">
           {(['pending', 'approved', 'rejected'] as StatusFilter[]).map((s) => (
             <button key={s} onClick={() => setFilter(s)}
@@ -212,7 +259,7 @@ export default function AdminDashboard() {
             </button>
           ))}
         </div>
-      ) : (
+      ) : tab === 'users' ? (
         <input
           type="text"
           value={userSearch}
@@ -220,6 +267,22 @@ export default function AdminDashboard() {
           placeholder="이메일 또는 이름으로 검색"
           className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+      ) : (
+        <form onSubmit={handleAddBlock} className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
+          <p className="text-sm font-medium text-gray-800">이메일 수동 차단</p>
+          <div className="flex gap-2">
+            <input type="email" value={newBlockEmail} onChange={(e) => setNewBlockEmail(e.target.value)}
+              placeholder="차단할 이메일"
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" value={newBlockReason} onChange={(e) => setNewBlockReason(e.target.value)}
+              placeholder="사유 (선택)"
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <button type="submit"
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center gap-1">
+              <Ban className="w-3.5 h-3.5" /> 차단
+            </button>
+          </div>
+        </form>
       )}
 
       {msg && (
@@ -241,9 +304,42 @@ export default function AdminDashboard() {
         <SignupList items={signups} filter={filter} processingId={processingId} onAction={handleSignupAction} />
       ) : tab === 'invites' ? (
         <InviteList items={approvals} filter={filter} processingId={processingId} onAction={handleInviteAction} />
-      ) : (
+      ) : tab === 'users' ? (
         <UserList items={users} search={userSearch} processingId={processingId} onDelete={handleDeleteUser} />
+      ) : (
+        <BlockedList items={blockedEmails} onUnblock={handleUnblock} />
       )}
+    </div>
+  )
+}
+
+function BlockedList({ items, onUnblock }: {
+  items: BlockedEmail[]
+  onUnblock: (b: BlockedEmail) => void
+}) {
+  if (!items.length) return <EmptyState label="차단된 이메일이 없어요" />
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-gray-400">총 {items.length}개</p>
+      {items.map((b) => (
+        <div key={b.id} className="bg-white rounded-2xl border border-red-100 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+            <Ban className="w-5 h-5 text-red-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 truncate">{b.email}</p>
+            {b.reason && <p className="text-xs text-gray-500 truncate">{b.reason}</p>}
+            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+              <Clock className="w-3 h-3" /> 차단 {new Date(b.blocked_at).toLocaleString('ko-KR')}
+            </p>
+          </div>
+          <button onClick={() => onUnblock(b)}
+            className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors">
+            <X className="w-3.5 h-3.5" /> 해제
+          </button>
+        </div>
+      ))}
     </div>
   )
 }

@@ -34,6 +34,22 @@ export async function GET(request: Request) {
   const admin = createAdmin()
   const now = new Date().toISOString()
 
+  // 0. 차단된 이메일 체크 — 즉시 로그아웃 + 안내
+  if (user.email) {
+    const { data: blocked } = await admin
+      .from('blocked_emails')
+      .select('id')
+      .eq('email', user.email.toLowerCase())
+      .maybeSingle()
+
+    if (blocked) {
+      // auth.users에서 즉시 삭제 (다시 만들어진 계정이라 새 ID)
+      await admin.auth.admin.deleteUser(user.id)
+      await supabase.auth.signOut()
+      return NextResponse.redirect(`${origin}/login?error=blocked`)
+    }
+  }
+
   let claimedWorkspaceId: string | null = null
 
   // 1. 초대 토큰이 있으면 처리

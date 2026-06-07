@@ -35,6 +35,10 @@ export async function DELETE(
 
   const d = db()
 
+  // 0. 대상 유저 이메일 조회 (차단 목록에 추가용)
+  const { data: targetAuthData } = await d.auth.admin.getUserById(targetUserId)
+  const targetEmail = targetAuthData?.user?.email?.toLowerCase() || null
+
   // 1. 본인이 owner인 워크스페이스 조회
   const { data: ownedRows } = await d
     .from('workspace_members')
@@ -111,8 +115,20 @@ export async function DELETE(
     }, { status: 500 })
   }
 
+  // 9. 이메일을 차단 목록에 자동 추가 (같은 이메일로 재가입 차단)
+  if (targetEmail) {
+    await d
+      .from('blocked_emails')
+      .upsert({
+        email: targetEmail,
+        blocked_by: user.id,
+        reason: '슈퍼관리자가 계정을 삭제함',
+      }, { onConflict: 'email' })
+  }
+
   return NextResponse.json({
     success: true,
     deletedWorkspaces: deletableWorkspaceIds.length,
+    blockedEmail: targetEmail,
   })
 }

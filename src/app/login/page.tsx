@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FileAudio, Users, Sparkles, CheckSquare, X, Loader2, Check, HelpCircle, Smartphone } from 'lucide-react'
 import Link from 'next/link'
@@ -23,6 +23,25 @@ const STEPS = [
 
 export default function LoginPage() {
   const [showRequestModal, setShowRequestModal] = useState(false)
+  const [loginError, setLoginError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const err = params.get('error')
+    if (err === 'blocked') {
+      setLoginError('차단된 계정이에요. 이용에 관한 문의는 관리자(sq15330@gmail.com)에게 보내주세요.')
+    } else if (err === 'auth_failed') {
+      setLoginError('로그인에 실패했어요. 다시 시도해주세요.')
+    } else if (err === 'unauthorized') {
+      setLoginError('접근 권한이 없는 계정이에요.')
+    }
+    // URL에서 에러 파라미터 제거 (새로고침 시 메시지 안 뜨도록)
+    if (err) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('error')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [])
 
   const handleGoogleLogin = async () => {
     const supabase = createClient()
@@ -114,6 +133,12 @@ export default function LoginPage() {
               <p className="text-gray-400 text-xs sm:text-sm text-center mb-6 sm:mb-8">
                 구글 계정으로 빠르게 시작하세요
               </p>
+
+              {loginError && (
+                <div className="bg-red-50 border border-red-100 rounded-2xl px-4 py-3 mb-4 text-xs sm:text-sm text-red-700 leading-relaxed">
+                  {loginError}
+                </div>
+              )}
 
               <button
                 onClick={handleGoogleLogin}
