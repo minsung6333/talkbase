@@ -92,7 +92,7 @@ export async function PATCH(
 
   // 초대 토큰 생성 (7일)
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: invite } = await d
+  const { data: invite, error: inviteErr } = await d
     .from('workspace_invites')
     .insert({
       workspace_id: approval.workspace_id,
@@ -103,20 +103,34 @@ export async function PATCH(
     .select('token')
     .single()
 
+  if (inviteErr || !invite?.token) {
+    console.error('workspace_invites 생성 실패:', inviteErr)
+    return NextResponse.json({
+      success: false,
+      error: `초대 토큰 생성 실패: ${inviteErr?.message || '알 수 없음'}`,
+    }, { status: 500 })
+  }
+
   // 초대 메일 발송
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://talkbase-navy.vercel.app'
   const inviterName = requester?.full_name || requester?.email || '관리자'
 
   let emailSent = true
+  let emailError: string | undefined
   try {
     await sendInviteEmail(approval.email, inviterName, appUrl, {
       workspaceName: workspace?.name,
-      inviteToken: invite?.token,
+      inviteToken: invite.token,
     })
   } catch (err) {
     console.error('초대 메일 발송 실패:', err)
     emailSent = false
+    emailError = err instanceof Error ? err.message : String(err)
   }
 
-  return NextResponse.json({ success: true, emailSent })
+  return NextResponse.json({
+    success: true,
+    emailSent,
+    ...(emailError ? { emailError } : {}),
+  })
 }

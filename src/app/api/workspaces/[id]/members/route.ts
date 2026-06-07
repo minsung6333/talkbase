@@ -112,7 +112,7 @@ export async function POST(
 
     // 초대 토큰 발급
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-    const { data: invite } = await d
+    const { data: invite, error: inviteErr } = await d
       .from('workspace_invites')
       .insert({
         workspace_id: id,
@@ -123,19 +123,34 @@ export async function POST(
       .select('token')
       .single()
 
+    if (inviteErr || !invite?.token) {
+      console.error('workspace_invites 생성 실패:', inviteErr)
+      return NextResponse.json({
+        success: false,
+        error: `초대 토큰 생성 실패: ${inviteErr?.message || '알 수 없음'}`,
+      }, { status: 500 })
+    }
+
     // 메일 발송
     let emailSent = true
+    let emailError: string | undefined
     try {
       await sendInviteEmail(cleanEmail, inviterName, appUrl, {
         workspaceName: workspace?.name,
-        inviteToken: invite?.token,
+        inviteToken: invite.token,
       })
     } catch (err) {
       console.error('초대 메일 발송 실패:', err)
       emailSent = false
+      emailError = err instanceof Error ? err.message : String(err)
     }
 
-    return NextResponse.json({ success: true, emailSent, autoApproved: true })
+    return NextResponse.json({
+      success: true,
+      emailSent,
+      autoApproved: true,
+      ...(emailError ? { emailError } : {}),
+    })
   }
 
   // 일반 owner/admin → 승인 큐 경로

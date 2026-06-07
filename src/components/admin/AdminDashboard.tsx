@@ -107,7 +107,11 @@ export default function AdminDashboard() {
       if (action === 'approve') {
         setMsg({
           type: 'success',
-          text: d.emailSent ? '✓ 승인 + 초대 메일 발송 완료' : '⚠️ 승인은 됐지만 메일 발송 실패',
+          text: d.emailSent
+            ? '✓ 승인 + 초대 메일 발송 완료'
+            : d.emailError
+              ? `⚠️ 승인됐지만 메일 발송 실패: ${d.emailError}`
+              : '⚠️ 승인은 됐지만 메일 발송 실패',
         })
       } else {
         setMsg({ type: 'success', text: '✓ 거절했어요' })
