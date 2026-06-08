@@ -20,7 +20,7 @@ export default function UploadForm() {
   const [file, setFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
   const [type, setType] = useState<RecordingType>('team_meeting')
-  const [visibility, setVisibility] = useState<Visibility>('team')
+  const [visibility, setVisibility] = useState<Visibility>('private')
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('minutes')
   const [projectId, setProjectId] = useState<string>('')
   const [speakerCount, setSpeakerCount] = useState<number | null>(null) // null = 자동 감지
@@ -261,8 +261,8 @@ export default function UploadForm() {
           <label className="block text-sm font-medium text-gray-700 mb-1.5">공개 범위</label>
           <div className="grid grid-cols-2 gap-2">
             {([
-              ['team', '👥 팀 공유'],
               ['private', '🔒 나만 보기'],
+              ['team', '👥 팀 공유'],
             ] as [Visibility, string][]).map(([value, label]) => (
               <button
                 key={value}
