@@ -6,6 +6,7 @@ import { upload } from '@vercel/blob/client'
 import { Upload, FileAudio, X, FolderOpen, Plus, Share2 } from 'lucide-react'
 import type { RecordingType, Visibility, OutputFormat } from '@/types'
 import TemplatePicker from './TemplatePicker'
+import { loadSharedFromIDB } from '@/lib/share-target'
 
 interface Project {
   id: string
@@ -30,47 +31,59 @@ export default function UploadForm() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
 
-  // 공유로 받은 파일 (Android Share Target)
-  const [sharedBlobUrl, setSharedBlobUrl] = useState<string | null>(null)
-  const [sharedFilename, setSharedFilename] = useState<string | null>(null)
+  // 공유로 받은 파일 표시용 (실제 파일은 file state에 채움)
+  const [fromShare, setFromShare] = useState(false)
 
   useEffect(() => {
     fetch('/api/projects').then(r => r.json()).then(setProjects).catch(() => {})
   }, [])
 
-  // Share Target 진입 처리
+  // Share Target 진입 처리 — Service Worker가 IndexedDB에 저장한 파일을 꺼냄
   useEffect(() => {
-    const blobUrl = searchParams.get('blob_url')
-    const filename = searchParams.get('filename')
-    const sharedTitle = searchParams.get('title')
+    const fromShareFlag = searchParams.get('from_share')
     const shareError = searchParams.get('share_error')
 
     if (shareError) {
       const map: Record<string, string> = {
         no_file: '공유받은 파일이 없어요',
         too_large: '파일이 500MB를 초과해요',
-        upload_failed: '공유 파일 업로드에 실패했어요',
+        upload_failed: '공유 파일 처리에 실패했어요',
+        sw_required: 'Service Worker가 활성화되지 않았어요. 앱을 한 번 열고 다시 시도해주세요.',
       }
       setError(map[shareError] || '공유 처리 실패')
+      // URL 정리
+      router.replace('/upload')
       return
     }
 
-    if (blobUrl && filename) {
-      setSharedBlobUrl(blobUrl)
-      setSharedFilename(filename)
-      if (!title) {
-        setTitle((sharedTitle || filename).replace(/\.[^/.]+$/, ''))
-      }
+    if (fromShareFlag === '1') {
+      loadSharedFromIDB().then((data) => {
+        if (data?.file) {
+          // IDB에서 받은 Blob/File을 File로 정규화
+          const f = data.file instanceof File
+            ? data.file
+            : new File([data.file], data.filename || 'shared.m4a', {
+                type: (data.file as Blob).type || 'audio/x-m4a',
+              })
+          setFile(f)
+          setFromShare(true)
+          if (!title) {
+            const base = data.title || data.filename || ''
+            setTitle(base.replace(/\.[^/.]+$/, ''))
+          }
+        } else {
+          setError('공유받은 파일을 찾지 못했어요. 앱이 처음 설치된 경우 한 번 더 공유해주세요.')
+        }
+        // URL 정리 (새로고침 시 중복 처리 방지)
+        router.replace('/upload')
+      }).catch((err) => {
+        console.error(err)
+        setError('공유 파일 읽기 실패')
+        router.replace('/upload')
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
-
-  const clearShared = () => {
-    setSharedBlobUrl(null)
-    setSharedFilename(null)
-    // URL 쿼리도 정리
-    router.replace('/upload')
-  }
 
   const ACCEPTED_TYPES = ['audio/x-m4a', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/m4a']
   const MAX_SIZE_MB = 500
@@ -106,40 +119,24 @@ export default function UploadForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const hasShared = !!sharedBlobUrl
-    if (!hasShared && !file) return
-    if (!title.trim()) return
+    if (!file || !title.trim()) return
 
     setUploading(true)
     setError('')
 
     try {
-      let blobUrl: string
-      let usedFilename: string
+      // ===== Vercel Blob 직접 업로드 (공유/일반 모두 동일 흐름) =====
+      const safeName = file.name.replace(/[^\w.\-가-힣]/g, '_')
+      const pathname = `recordings/${Date.now()}-${safeName}`
 
-      if (hasShared && sharedBlobUrl) {
-        // ===== Share Target 진입: 이미 Blob에 올라와 있음 =====
-        blobUrl = sharedBlobUrl
-        usedFilename = sharedFilename || 'shared-recording'
-        setUploadProgress(95)
-      } else if (file) {
-        // ===== 일반 업로드: Vercel Blob 직접 업로드 =====
-        const safeName = file.name.replace(/[^\w.\-가-힣]/g, '_')
-        const pathname = `recordings/${Date.now()}-${safeName}`
-
-        const blob = await upload(pathname, file, {
-          access: 'public',
-          handleUploadUrl: '/api/blob-upload',
-          contentType: file.type || 'audio/x-m4a',
-          onUploadProgress: (e) => {
-            setUploadProgress(Math.round((e.loaded / e.total) * 95))
-          },
-        })
-        blobUrl = blob.url
-        usedFilename = file.name
-      } else {
-        throw new Error('파일이 없어요')
-      }
+      const blob = await upload(pathname, file, {
+        access: 'public',
+        handleUploadUrl: '/api/blob-upload',
+        contentType: file.type || 'audio/x-m4a',
+        onUploadProgress: (e) => {
+          setUploadProgress(Math.round((e.loaded / e.total) * 95))
+        },
+      })
 
       // 업로드 완료 → recording 생성 + STT 시작
       setUploadProgress(98)
@@ -147,8 +144,8 @@ export default function UploadForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          blobUrl,
-          filename: usedFilename,
+          blobUrl: blob.url,
+          filename: file.name,
           title: title.trim(),
           type,
           visibility,
@@ -175,68 +172,54 @@ export default function UploadForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* 파일 드롭존 (또는 공유로 받은 파일 표시) */}
-      {sharedFilename ? (
-        <div className="border-2 border-blue-300 bg-blue-50 rounded-2xl p-6 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <Share2 className="w-5 h-5 text-blue-600" />
-          </div>
-          <div className="text-left flex-1 min-w-0">
-            <p className="text-xs font-semibold text-blue-700 mb-0.5">📤 공유받은 파일</p>
-            <p className="font-medium text-gray-900 truncate">{sharedFilename}</p>
-            <p className="text-xs text-gray-500 mt-0.5">업로드 완료. 아래에서 정보 입력 후 분석 시작하세요.</p>
-          </div>
-          <button
-            type="button"
-            onClick={clearShared}
-            className="p-2 hover:bg-blue-100 rounded-lg transition-colors flex-shrink-0"
-            aria-label="공유 파일 취소"
-          >
-            <X className="w-4 h-4 text-gray-500" />
-          </button>
-        </div>
-      ) : (
-        <div
-          onDrop={handleFileDrop}
-          onDragOver={(e) => e.preventDefault()}
-          onClick={() => !file && fileInputRef.current?.click()}
-          className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${
-            file
-              ? 'border-blue-200 bg-blue-50'
-              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50 cursor-pointer'
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".m4a,.mp3,.wav,audio/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
+      <div
+        onDrop={handleFileDrop}
+        onDragOver={(e) => e.preventDefault()}
+        onClick={() => !file && fileInputRef.current?.click()}
+        className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-colors ${
+          file
+            ? 'border-blue-200 bg-blue-50'
+            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50 cursor-pointer'
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".m4a,.mp3,.wav,audio/*"
+          onChange={handleFileChange}
+          className="hidden"
+        />
 
-          {file ? (
-            <div className="flex items-center gap-3">
+        {file ? (
+          <div className="flex items-center gap-3">
+            {fromShare ? (
+              <Share2 className="w-8 h-8 text-blue-500 flex-shrink-0" />
+            ) : (
               <FileAudio className="w-8 h-8 text-blue-500 flex-shrink-0" />
-              <div className="text-left flex-1 min-w-0">
-                <p className="font-medium text-gray-900 truncate">{file.name}</p>
-                <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setFile(null); setUploadProgress(0) }}
-                className="p-1 hover:bg-blue-100 rounded-lg transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
+            )}
+            <div className="text-left flex-1 min-w-0">
+              {fromShare && (
+                <p className="text-[10px] font-semibold text-blue-700 mb-0.5">📤 공유받은 파일</p>
+              )}
+              <p className="font-medium text-gray-900 truncate">{file.name}</p>
+              <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <Upload className="w-8 h-8 text-gray-400 mx-auto" />
-              <p className="text-gray-600 font-medium">파일을 드래그하거나 클릭해서 선택</p>
-              <p className="text-sm text-gray-400">m4a, mp3, wav · 최대 500MB</p>
-            </div>
-          )}
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setFile(null); setFromShare(false); setUploadProgress(0) }}
+              className="p-1 hover:bg-blue-100 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Upload className="w-8 h-8 text-gray-400 mx-auto" />
+            <p className="text-gray-600 font-medium">파일을 드래그하거나 클릭해서 선택</p>
+            <p className="text-sm text-gray-400">m4a, mp3, wav · 최대 500MB</p>
+          </div>
+        )}
+      </div>
 
       {error && (
         <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 whitespace-pre-line leading-relaxed space-y-2">
@@ -409,7 +392,7 @@ export default function UploadForm() {
       {/* 제출 버튼 */}
       <button
         type="submit"
-        disabled={(!file && !sharedBlobUrl) || !title.trim() || uploading}
+        disabled={!file || !title.trim() || uploading}
         className="w-full bg-blue-600 text-white rounded-xl py-3 font-medium text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {uploading ? '처리 중...' : '변환 시작'}
