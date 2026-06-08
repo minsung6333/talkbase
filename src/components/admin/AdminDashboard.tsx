@@ -264,7 +264,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* 탭 */}
-      <div className="flex gap-1 border-b border-gray-100">
+      <div className="flex gap-1 border-b border-gray-100 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <TabButton active={tab === 'signups'} onClick={() => setTab('signups')}
           icon={UserPlus} label="가입 신청" />
         <TabButton active={tab === 'invites'} onClick={() => setTab('invites')}
@@ -300,7 +300,7 @@ export default function AdminDashboard() {
       ) : (
         <form onSubmit={handleAddBlock} className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
           <p className="text-sm font-medium text-gray-800">이메일 수동 차단</p>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input type="email" value={newBlockEmail} onChange={(e) => setNewBlockEmail(e.target.value)}
               placeholder="차단할 이메일"
               className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -308,7 +308,7 @@ export default function AdminDashboard() {
               placeholder="사유 (선택)"
               className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <button type="submit"
-              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center gap-1">
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-1">
               <Ban className="w-3.5 h-3.5" /> 차단
             </button>
           </div>
@@ -382,10 +382,10 @@ function TabButton({ active, onClick, icon: Icon, label }: {
 }) {
   return (
     <button onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+      className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
         active ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
       }`}>
-      <Icon className="w-4 h-4" />
+      <Icon className="w-4 h-4 flex-shrink-0" />
       {label}
     </button>
   )

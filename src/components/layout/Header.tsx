@@ -123,14 +123,14 @@ export default function Header() {
   }
 
   const settingsHref = currentWorkspaceId ? `/workspaces/${currentWorkspaceId}/settings` : null
-  const canManage = myWorkspaceRole === 'owner' || myWorkspaceRole === 'admin'
 
   const navItems: NavItem[] = [
     { href: '/',        label: '홈',    icon: Home },
     { href: '/upload',  label: '업로드', icon: Mic },
     { href: '/history', label: '보관함', icon: FolderOpen },
     { href: '/search',  label: '검색',   icon: Search },
-    ...(canManage && settingsHref ? [{ href: settingsHref, label: '관리', icon: Settings }] : []),
+    // 모든 멤버가 접근 가능: 멤버는 정보 열람·본인 탈퇴, owner/admin은 관리 가능
+    ...(myWorkspaceRole && settingsHref ? [{ href: settingsHref, label: '관리', icon: Settings }] : []),
     ...(isSuperAdmin ? [{ href: '/admin', label: '슈퍼', icon: ShieldCheck }] : []),
   ]
 
