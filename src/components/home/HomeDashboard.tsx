@@ -91,7 +91,7 @@ export default function HomeDashboard() {
         </div>
         <div className="flex-1">
           <p className="font-semibold text-lg">녹음 파일 업로드</p>
-          <p className="text-blue-200 text-sm mt-0.5">m4a, mp3, wav · 최대 2GB</p>
+          <p className="text-blue-200 text-sm mt-0.5">m4a, mp3, wav, mp4 · 최대 2GB</p>
         </div>
         <ChevronRight className="w-5 h-5 text-blue-300 group-hover:translate-x-1 transition-transform" />
       </Link>
