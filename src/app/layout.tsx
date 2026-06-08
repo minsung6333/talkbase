@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
-import PWAInstallPrompt from "@/components/ui/PWAInstallPrompt";
+// PWA 설치 자동 팝업은 비활성화 — 사용자가 /help/install 가이드로 직접 설치
+// import PWAInstallPrompt from "@/components/ui/PWAInstallPrompt";
 import ServiceWorkerRegister from "@/components/ui/ServiceWorkerRegister";
 
 const geist = Geist({ subsets: ["latin"] });
@@ -63,7 +64,6 @@ export default function RootLayout({
     <html lang="ko" className="h-full antialiased">
       <body className={`${geist.className} min-h-full bg-gray-50 pb-16 md:pb-0`}>
         {children}
-        <PWAInstallPrompt />
         <ServiceWorkerRegister />
       </body>
     </html>
