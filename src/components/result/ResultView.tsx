@@ -362,16 +362,14 @@ export default function ResultView({ recording }: Props) {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 group">
+            <button
+              onClick={() => setEditingTitle(true)}
+              className="flex items-center gap-2 w-full text-left group hover:opacity-80 transition-opacity"
+              aria-label="제목 편집"
+            >
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">{title}</h1>
-              <button
-                onClick={() => setEditingTitle(true)}
-                className="p-1 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100 sm:opacity-100"
-                aria-label="제목 편집"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-            </div>
+              <Pencil className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            </button>
           )}
           <p className="text-xs sm:text-sm text-gray-500 mt-1" suppressHydrationWarning>
             {new Date(recording.created_at).toLocaleDateString('ko-KR', {
