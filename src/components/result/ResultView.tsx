@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ExternalLink, Play, Pause, FileText, AlignLeft, Pencil, Check, X, RefreshCw, Loader2, Zap, Sparkles, SendHorizontal, Mail, Share2, Copy, Globe, Briefcase } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ExternalLink, Play, Pause, FileText, AlignLeft, Pencil, Check, X, RefreshCw, Loader2, Zap, Sparkles, SendHorizontal, Mail, Share2, Copy, Globe, Briefcase, MoreHorizontal, Trash2 } from 'lucide-react'
 import type { Recording, SttResult } from '@/types'
 import { TEMPLATES } from '@/lib/templates'
 import { groupSttBySpeaker } from '@/lib/stt'
@@ -18,7 +19,11 @@ const QUICK_ACTIONS = [
 ]
 
 export default function ResultView({ recording }: Props) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<'ai' | 'stt'>('ai')
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -204,6 +209,35 @@ export default function ResultView({ recording }: Props) {
     setTimeout(() => setReportCopied(false), 2000)
   }
 
+  // 더보기 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!moreMenuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [moreMenuOpen])
+
+  const handleDelete = async () => {
+    if (!confirm(`"${recording.title}" 녹음을 삭제할까요?\n\n• AI 회의록 + STT 전문 + 오디오 파일 모두 삭제\n• 되돌릴 수 없어요`)) {
+      return
+    }
+    setDeleting(true)
+    setMoreMenuOpen(false)
+    const res = await fetch(`/api/recordings/${recording.id}/delete`, { method: 'DELETE' })
+    if (res.ok) {
+      router.push('/history')
+      router.refresh()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      alert(`삭제 실패: ${d.error || '알 수 없는 오류'}`)
+      setDeleting(false)
+    }
+  }
+
   const handleTimestampClick = (seconds: number) => {
     const audio = audioRef.current
     if (!audio) return
@@ -277,14 +311,37 @@ export default function ResultView({ recording }: Props) {
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* 헤더 — 제목 영역 */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">{recording.title}</h1>
-        <p className="text-xs sm:text-sm text-gray-500 mt-1" suppressHydrationWarning>
-          {new Date(recording.created_at).toLocaleDateString('ko-KR', {
-            year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-          })}
-        </p>
+      {/* 헤더 — 제목 영역 + 더보기 메뉴 */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">{recording.title}</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1" suppressHydrationWarning>
+            {new Date(recording.created_at).toLocaleDateString('ko-KR', {
+              year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            })}
+          </p>
+        </div>
+
+        <div className="relative flex-shrink-0" ref={moreMenuRef}>
+          <button
+            onClick={() => setMoreMenuOpen(v => !v)}
+            disabled={deleting}
+            className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-50"
+            aria-label="더보기"
+          >
+            {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <MoreHorizontal className="w-5 h-5" />}
+          </button>
+          {moreMenuOpen && (
+            <div className="absolute right-0 top-12 bg-white border border-gray-100 rounded-xl shadow-lg z-10 w-44 py-1">
+              <button
+                onClick={handleDelete}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" /> 녹음 삭제
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 액션 버튼 — 모바일에선 풀너비 그리드, 데스크탑에선 인라인 */}
