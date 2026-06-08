@@ -325,19 +325,28 @@ export default function DriveView() {
                 <tr key={r.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3">
                     {r.status === 'completed' ? (
-                      <Link href={`/result/${r.id}`} className="font-medium text-gray-900 hover:text-blue-600 text-sm">
+                      <Link href={`/result/${r.id}`} className="font-medium text-gray-900 hover:text-blue-600 text-sm block">
                         {r.title}
                       </Link>
                     ) : (
-                      <span className="font-medium text-gray-600 text-sm">{r.title}</span>
+                      <span className="font-medium text-gray-600 text-sm block">{r.title}</span>
                     )}
+                    {/* 모바일 전용: 날짜 + 상태를 제목 아래에 작게 표시 */}
+                    <div className="flex items-center gap-2 mt-0.5 md:hidden text-[11px]">
+                      <span className="text-gray-400">
+                        {new Date(r.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
+                      </span>
+                      <span className={`font-medium ${STATUS_COLOR[r.status] || 'text-gray-400'}`}>
+                        · {STATUS_LABEL[r.status] || r.status}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-3 py-3 hidden sm:table-cell">
                     <span className={`text-xs font-medium ${STATUS_COLOR[r.status] || 'text-gray-400'}`}>
                       {STATUS_LABEL[r.status] || r.status}
                     </span>
                   </td>
-                  <td className="px-3 py-3 hidden md:table-cell text-xs text-gray-400">
+                  <td className="px-3 py-3 hidden md:table-cell text-xs text-gray-400 whitespace-nowrap">
                     {new Date(r.created_at).toLocaleDateString('ko-KR')}
                   </td>
                   <td className="px-3 py-3">

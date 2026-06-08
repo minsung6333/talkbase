@@ -24,6 +24,12 @@ export default function ResultView({ recording }: Props) {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement | null>(null)
+
+  // 제목 편집
+  const [title, setTitle] = useState(recording.title)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleInput, setTitleInput] = useState(recording.title)
+  const [savingTitle, setSavingTitle] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -221,6 +227,26 @@ export default function ResultView({ recording }: Props) {
     return () => document.removeEventListener('mousedown', handler)
   }, [moreMenuOpen])
 
+  const handleSaveTitle = async () => {
+    const t = titleInput.trim()
+    if (!t || t === title) { setEditingTitle(false); setTitleInput(title); return }
+    setSavingTitle(true)
+    const res = await fetch(`/api/recordings/${recording.id}/edit`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: t }),
+    })
+    setSavingTitle(false)
+    if (res.ok) {
+      setTitle(t)
+      setEditingTitle(false)
+      router.refresh()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      alert(`제목 변경 실패: ${d.error || '알 수 없는 오류'}`)
+    }
+  }
+
   const handleDelete = async () => {
     if (!confirm(`"${recording.title}" 녹음을 삭제할까요?\n\n• AI 회의록 + STT 전문 + 오디오 파일 모두 삭제\n• 되돌릴 수 없어요`)) {
       return
@@ -314,7 +340,39 @@ export default function ResultView({ recording }: Props) {
       {/* 헤더 — 제목 영역 + 더보기 메뉴 */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">{recording.title}</h1>
+          {editingTitle ? (
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                value={titleInput}
+                onChange={(e) => setTitleInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveTitle()
+                  if (e.key === 'Escape') { setEditingTitle(false); setTitleInput(title) }
+                }}
+                className="flex-1 text-xl sm:text-2xl font-bold text-gray-900 leading-tight border-b-2 border-blue-500 focus:outline-none bg-transparent py-1"
+              />
+              <button onClick={handleSaveTitle} disabled={savingTitle}
+                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50">
+                {savingTitle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              </button>
+              <button onClick={() => { setEditingTitle(false); setTitleInput(title) }}
+                className="p-1.5 text-gray-400 hover:bg-gray-50 rounded-lg transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 group">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">{title}</h1>
+              <button
+                onClick={() => setEditingTitle(true)}
+                className="p-1 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100 sm:opacity-100"
+                aria-label="제목 편집"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
           <p className="text-xs sm:text-sm text-gray-500 mt-1" suppressHydrationWarning>
             {new Date(recording.created_at).toLocaleDateString('ko-KR', {
               year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'

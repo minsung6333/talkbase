@@ -57,7 +57,7 @@ export async function POST(
   return NextResponse.json({ aiResult: edited })
 }
 
-// PATCH: 직접 편집 저장
+// PATCH: 직접 편집 저장 (title 또는 aiResult)
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -67,13 +67,45 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { aiResult } = await request.json()
+  const { aiResult, title } = await request.json()
 
-  const { error } = await admin()
+  const db = admin()
+
+  // 권한: 본인 녹음 또는 같은 워크스페이스 멤버
+  const { data: rec } = await db
     .from('recordings')
-    .update({ ai_result: aiResult })
+    .select('user_id, workspace_id')
     .eq('id', id)
+    .maybeSingle()
+  if (!rec) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  let allowed = rec.user_id === user.id
+  if (!allowed && rec.workspace_id) {
+    const { data: member } = await db
+      .from('workspace_members')
+      .select('id')
+      .eq('workspace_id', rec.workspace_id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (member) allowed = true
+  }
+  if (!allowed) {
+    return NextResponse.json({ error: '편집 권한이 없어요' }, { status: 403 })
+  }
+
+  // 업데이트 페이로드 구성
+  const patch: Record<string, unknown> = {}
+  if (typeof aiResult === 'string') patch.ai_result = aiResult
+  if (typeof title === 'string') {
+    const t = title.trim()
+    if (!t) return NextResponse.json({ error: '제목을 입력해주세요' }, { status: 400 })
+    patch.title = t
+  }
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: '변경할 내용이 없어요' }, { status: 400 })
+  }
+
+  const { error } = await db.from('recordings').update(patch).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }
