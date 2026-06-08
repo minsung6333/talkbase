@@ -29,7 +29,7 @@ export async function POST(request: Request) {
             'audio/m4a',
             'audio/*',
           ],
-          maximumSizeInBytes: 2 * 1024 * 1024 * 1024, // 2GB
+          maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
           tokenPayload: JSON.stringify({
             userId: user.id,
             pathname,

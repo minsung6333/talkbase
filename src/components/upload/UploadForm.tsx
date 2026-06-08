@@ -33,11 +33,8 @@ export default function UploadForm() {
     fetch('/api/projects').then(r => r.json()).then(setProjects).catch(() => {})
   }, [])
 
-  const ACCEPTED_TYPES = [
-    'audio/x-m4a', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/m4a',
-    'video/mp4',  // Zoom 녹화 등 — RTZR이 오디오 트랙 자동 추출
-  ]
-  const MAX_SIZE_GB = 2
+  const ACCEPTED_TYPES = ['audio/x-m4a', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/m4a']
+  const MAX_SIZE_MB = 500
 
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault()
@@ -52,8 +49,8 @@ export default function UploadForm() {
 
   const validateAndSetFile = (f: File) => {
     setError('')
-    if (f.size > MAX_SIZE_GB * 1024 * 1024 * 1024) {
-      setError(`파일 크기가 ${MAX_SIZE_GB}GB를 초과해요`)
+    if (f.size > MAX_SIZE_MB * 1024 * 1024) {
+      setError(`파일 크기가 ${MAX_SIZE_MB}MB를 초과해요`)
       return
     }
     setFile(f)
@@ -138,7 +135,7 @@ export default function UploadForm() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".m4a,.mp3,.wav,.mp4,audio/*,video/mp4"
+          accept=".m4a,.mp3,.wav,audio/*"
           onChange={handleFileChange}
           className="hidden"
         />
@@ -162,7 +159,7 @@ export default function UploadForm() {
           <div className="space-y-2">
             <Upload className="w-8 h-8 text-gray-400 mx-auto" />
             <p className="text-gray-600 font-medium">파일을 드래그하거나 클릭해서 선택</p>
-            <p className="text-sm text-gray-400">m4a, mp3, wav, mp4 · 최대 2GB</p>
+            <p className="text-sm text-gray-400">m4a, mp3, wav · 최대 500MB</p>
           </div>
         )}
       </div>
