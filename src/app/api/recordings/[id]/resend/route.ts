@@ -19,13 +19,27 @@ export async function POST(
 
   const { data: recording } = await db
     .from('recordings')
-    .select('id, title, ai_result, notion_page_url, user_id')
+    .select('id, title, ai_result, notion_page_url, user_id, workspace_id')
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
   if (!recording) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (recording.user_id !== user.id)
-    return NextResponse.json({ error: '본인 녹음만 재발송할 수 있어요' }, { status: 403 })
+
+  // 권한: 본인 녹음 또는 같은 워크스페이스 멤버
+  const isOwner = recording.user_id === user.id
+  let allowed = isOwner
+  if (!allowed && recording.workspace_id) {
+    const { data: member } = await db
+      .from('workspace_members')
+      .select('id')
+      .eq('workspace_id', recording.workspace_id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (member) allowed = true
+  }
+  if (!allowed) {
+    return NextResponse.json({ error: '워크스페이스 멤버만 재발송할 수 있어요' }, { status: 403 })
+  }
 
   if (!recording.ai_result)
     return NextResponse.json({ error: '발송할 내용이 없어요' }, { status: 400 })
